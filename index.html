@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>V2P Education – Ôn thi THPT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>
+window.__mjPending = [];
+window.MathJax = {
+  tex: { inlineMath: [['$','$'],['\\(','\\)']], displayMath: [['$$','$$'],['\\[','\\]']] },
+  svg: { fontCache: 'global' },
+  options: { enableMenu: false },
+  startup: {
+    typeset: false,
+    ready() {
+      MathJax.startup.defaultReady();
+      MathJax.startup.promise.then(() => {
+        const p = window.__mjPending.splice(0);
+        p.forEach(el => { if (el.isConnected) MathJax.typesetPromise([el]).catch(()=>{}); });
+      });
+    }
+  }
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<style>
+:root{
+  --bg:#f5f6fa; --card:#fff; --ink:#1a2233; --ink2:#465068; --muted:#6b7488; --line:#e2e6ee; --line2:#cfd5e1;
+  --pri:#4b3fe0; --pri2:#3a2fc4; --pri-soft:#eeecff; --acc:#ffb926; --acc2:#f2a600; --acc-soft:#fff5dc; --acc-ink:#5a3d00;
+  --good:#16794a; --good-soft:#e4f4eb; --bad:#b8322a; --bad-soft:#fcebea; --warn:#9a5b00; --warn-soft:#fff3dc;
+  --r:12px; --sh:0 1px 2px rgba(20,30,60,.06),0 2px 8px rgba(20,30,60,.05);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.55}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--pri)}
+.top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:3px solid var(--acc);display:flex;align-items:center;gap:18px;padding:10px 20px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-size:17px;white-space:nowrap}
+.brand img{width:38px;height:38px;object-fit:contain}
+.brand .nm{font-weight:700;color:var(--pri);font-size:18px;line-height:1.1;letter-spacing:.2px}
+.brand .tg{color:var(--muted);font-size:11.5px;line-height:1.2}
+nav{display:flex;gap:4px;flex-wrap:wrap;flex:1}
+nav button{background:none;border:0;padding:7px 12px;border-radius:8px;cursor:pointer;color:var(--ink2);font-weight:500}
+nav button:hover{background:var(--bg)}
+nav button.on{background:var(--pri-soft);color:var(--pri);box-shadow:inset 0 -3px 0 var(--acc)}
+nav .sep{width:1px;background:var(--line);margin:4px 6px}
+#who{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}
+main{max-width:1180px;margin:0 auto;padding:22px 18px 80px}
+h1{font-size:24px;margin:0 0 4px}
+h2{font-size:18px;margin:0 0 10px}
+h3{font-size:15px;margin:0 0 8px}
+.sub{color:var(--muted);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:var(--sh)}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+@media(max-width:860px){.g2,.g3{grid-template-columns:1fr}.g4{grid-template-columns:1fr 1fr}}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.end{justify-content:flex-end}
+.between{justify-content:space-between}
+.mt{margin-top:16px}.mt2{margin-top:24px}.mb{margin-bottom:12px}
+.btn{background:var(--pri);color:#fff;border:1px solid var(--pri);border-radius:9px;padding:8px 16px;cursor:pointer;font-weight:600;white-space:nowrap}
+.btn:hover{background:var(--pri2)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.ghost{background:#fff;color:var(--ink);border-color:var(--line2)}
+.btn.ghost:hover{background:var(--bg)}
+.btn.sm{padding:5px 10px;font-size:13px;font-weight:500}
+.btn.danger{background:#fff;color:var(--bad);border-color:#efc3c0}
+.btn.lg{padding:12px 22px;font-size:16px}
+.btn.acc{background:var(--acc);border-color:var(--acc);color:#1d1650}
+.btn.acc:hover{background:var(--acc2);border-color:var(--acc2)}
+.kpi{border-top:3px solid var(--acc)}
+h1{color:#1d1650}
+.hero{display:flex;gap:16px;align-items:center;background:linear-gradient(100deg,var(--pri) 0%,#6a5ff0 60%,#7d6ff5 100%);color:#fff;border-radius:16px;padding:18px 22px;margin-bottom:18px;position:relative;overflow:hidden}
+.hero h1{color:#fff;margin:0}
+.hero p{margin:2px 0 0;opacity:.92}
+.hero::after{content:"";position:absolute;right:-40px;top:-40px;width:180px;height:180px;border-radius:50%;background:var(--acc);opacity:.9}
+.hero .hl{color:var(--acc);font-weight:700}
+.seg{display:inline-flex;border:1px solid var(--line2);border-radius:9px;overflow:hidden;background:#fff}
+.seg button{border:0;background:none;padding:7px 14px;cursor:pointer;font-weight:500;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--pri);color:#fff}
+input[type=text],input[type=number],select,textarea{border:1px solid var(--line2);border-radius:8px;padding:7px 10px;background:#fff;width:100%}
+textarea{min-height:80px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border-color:var(--pri)}
+label.f{display:block;font-size:13px;font-weight:600;color:var(--ink2);margin:10px 0 4px}
+.chip{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;background:var(--bg);border:1px solid var(--line);color:var(--ink2);white-space:nowrap}
+.chip.pri{background:var(--pri-soft);border-color:#cdd8ff;color:var(--pri)}
+.chip.good{background:var(--good-soft);border-color:#bfe3cf;color:var(--good)}
+.chip.bad{background:var(--bad-soft);border-color:#f1c6c3;color:var(--bad)}
+.chip.warn{background:var(--warn-soft);border-color:#f2d9a8;color:var(--warn)}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.topics{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:8px}
+.topic{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;background:#fff}
+.topic:hover{border-color:var(--line2)}
+.topic.on{border-color:var(--pri);background:var(--pri-soft)}
+.topic input{margin-top:4px}
+.topic .nm{font-weight:600;font-size:14px}
+.topic .ct{font-size:12px;color:var(--muted)}
+.opt{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;background:#fff;text-align:left;width:100%}
+.opt:hover{border-color:var(--line2)}
+.opt .lt{flex:none;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line2);display:grid;place-items:center;font-weight:700;font-size:13px}
+.opt.sel{border-color:var(--pri);background:var(--pri-soft)}
+.opt.sel .lt{background:var(--pri);color:#fff;border-color:var(--pri)}
+.opt.right{border-color:var(--good);background:var(--good-soft)}
+.opt.right .lt{background:var(--good);color:#fff;border-color:var(--good)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.opt.wrong .lt{background:var(--bad);color:#fff;border-color:var(--bad)}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+@media(max-width:700px){.opts{grid-template-columns:1fr}}
+.q{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:18px;margin-bottom:14px;scroll-margin-top:80px}
+.qhead{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.qnum{font-weight:700;color:var(--pri)}
+.stem{font-size:15.5px}
+.stem img,.qimg{max-width:100%;max-height:320px;border-radius:8px;border:1px solid var(--line);margin-top:8px;display:block}
+.tf{width:100%;border-collapse:collapse;margin-top:10px}
+.tf td{border-top:1px solid var(--line);padding:8px 6px;vertical-align:middle}
+.tf td.st{width:100%}
+.tfb{border:1.5px solid var(--line2);background:#fff;border-radius:8px;padding:4px 12px;cursor:pointer;font-weight:600;min-width:52px}
+.tfb.sel{background:var(--pri);border-color:var(--pri);color:#fff}
+.tfb.right{background:var(--good);border-color:var(--good);color:#fff}
+.tfb.wrong{background:var(--bad);border-color:var(--bad);color:#fff}
+.tfb.miss{border-color:var(--good);color:var(--good)}
+.short{max-width:220px;font-size:17px;font-weight:600;letter-spacing:1px}
+.layout{display:grid;grid-template-columns:1fr 250px;gap:18px;align-items:start}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.side{position:static!important;order:-1}}
+.side{position:sticky;top:72px}
+.navgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+.navgrid button{border:1px solid var(--line2);background:#fff;border-radius:7px;padding:5px 0;font-size:13px;cursor:pointer;font-weight:600}
+.navgrid button.done{background:var(--pri);color:#fff;border-color:var(--pri)}
+.navgrid button.right{background:var(--good);color:#fff;border-color:var(--good)}
+.navgrid button.wrong{background:var(--bad);color:#fff;border-color:var(--bad)}
+.navgrid button.part{background:var(--warn-soft);color:var(--warn);border-color:#f2d9a8}
+.timer{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;text-align:center}
+.timer.low{color:var(--bad)}
+.parttitle{font-weight:700;font-size:16px;margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--line)}
+.sol{margin-top:12px;border-left:3px solid var(--pri);background:#f8f9fd;padding:10px 14px;border-radius:0 8px 8px 0}
+.sol.hidden{display:none}
+.kpi .v{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:13px;color:var(--muted)}
+.bars{display:flex;flex-direction:column;gap:9px}
+.bar{display:grid;grid-template-columns:minmax(140px,280px) 1fr 92px;gap:10px;align-items:center;font-size:13.5px}
+@media(max-width:700px){.bar{grid-template-columns:1fr 70px}.bar .track{grid-column:1/-1;order:3}}
+.track{height:12px;background:#eef0f5;border-radius:6px;overflow:hidden;position:relative}
+.fill{height:100%;border-radius:0 4px 4px 0}
+.fill.good{background:#2e9a62}.fill.warn{background:#d99a2b}.fill.bad{background:#d2554c}
+.bar .pct{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+table.tbl{width:100%;border-collapse:collapse;font-size:14px}
+table.tbl th{text-align:left;font-size:12.5px;color:var(--muted);font-weight:600;border-bottom:1px solid var(--line);padding:8px}
+table.tbl td{border-bottom:1px solid var(--line);padding:9px 8px;vertical-align:middle}
+table.tbl tr.click{cursor:pointer}
+table.tbl tr.click:hover td{background:#fafbfe}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.modal{position:fixed;inset:0;background:rgba(15,20,35,.45);z-index:50;display:flex;align-items:flex-start;justify-content:center;padding:40px 14px;overflow:auto}
+.modal.hidden{display:none}
+.modal .box{background:#fff;border-radius:14px;max-width:560px;width:100%;padding:22px;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.modal .box.wide{max-width:1050px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#1a2233;color:#fff;padding:10px 18px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:60;max-width:90vw}
+#toast.on{opacity:1}
+.banner{background:var(--warn-soft);border:1px solid #f2d9a8;color:#6e4300;padding:10px 14px;border-radius:10px;margin-bottom:16px;font-size:14px}
+.empty{text-align:center;color:var(--muted);padding:30px}
+.big{font-size:52px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.matrix td,.matrix th{padding:6px 8px;font-size:13px}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid var(--line2);border-top-color:var(--pri);border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+.prev{border:1px dashed var(--line2);border-radius:10px;padding:14px;background:#fcfcfe}
+.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--line2);background:#fff;padding:7px 14px;border-radius:99px;cursor:pointer;font-weight:500}
+.tabs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.hint{font-size:12.5px;color:var(--muted);margin-top:4px}
+svg.trend text{font-size:11px;fill:var(--muted)}
+.weak{border-left:4px solid var(--bad)}
+.ai-card{border:1px solid var(--line);border-radius:12px;padding:14px;background:#fff;margin-bottom:12px}
+.ai-card.off{opacity:.45}
+</style>
+<link rel="icon" type="image/png" href="data:image/png;base64,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">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><img src="data:image/png;base64,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" alt="V2P"><div><div class="nm">V2P Education</div><div class="tg">vision · progressive · professional</div></div></div>
+  <nav id="nav"></nav>
+  <div id="who"></div>
+</header>
+<main id="app"><div class="empty"><span class="spin"></span> Đang tải…</div></main>
+<div id="modal" class="modal hidden"><div class="box" id="modalBox"></div></div>
+<div id="toast"></div>
+
+<script>
+/* ===================== Chế độ chạy ===================== */
+const MODE = 'github'; // 'claude' | 'github' | 'workshop'
+const LOGO_FULL = 'data:image/jpeg;base64,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';
+/* ===================== Dữ liệu tĩnh ===================== */
+const BASE_TOPICS = {
+  10: [
+    ['10-menhde','Mệnh đề và tập hợp'],
+    ['10-bpt','Bất phương trình, hệ BPT bậc nhất hai ẩn'],
+    ['10-hamso2','Hàm số bậc hai và đồ thị'],
+    ['10-tamthuc','Dấu tam thức bậc hai, BPT bậc hai'],
+    ['10-hethucluong','Hệ thức lượng trong tam giác'],
+    ['10-vecto','Vectơ'],
+    ['10-toadophang','Phương pháp tọa độ trong mặt phẳng'],
+    ['10-tohop','Đại số tổ hợp, nhị thức Newton'],
+    ['10-thongke','Thống kê (mẫu số liệu không ghép nhóm)'],
+    ['10-xacsuat','Xác suất cổ điển']
+  ],
+  11: [
+    ['11-luonggiac','Hàm số lượng giác, phương trình lượng giác'],
+    ['11-dayso','Dãy số, cấp số cộng, cấp số nhân'],
+    ['11-ghepnhom','Mẫu số liệu ghép nhóm'],
+    ['11-gioihan','Giới hạn, hàm số liên tục'],
+    ['11-songsong','Quan hệ song song trong không gian'],
+    ['11-mulog','Hàm số mũ và hàm số logarit'],
+    ['11-vuonggoc','Quan hệ vuông góc, góc, khoảng cách, thể tích'],
+    ['11-quytacxs','Các quy tắc tính xác suất'],
+    ['11-daoham','Đạo hàm']
+  ],
+  12: [
+    ['12-khaosat','Ứng dụng đạo hàm, khảo sát hàm số'],
+    ['12-vectokg','Vectơ và hệ trục tọa độ trong không gian'],
+    ['12-phantan','Số đặc trưng đo mức độ phân tán (ghép nhóm)'],
+    ['12-tichphan','Nguyên hàm và tích phân'],
+    ['12-toadokg','Mặt phẳng, đường thẳng, mặt cầu (Oxyz)'],
+    ['12-xacsuatdk','Xác suất có điều kiện']
+  ]
+};
+const TYPES = { mcq:'Trắc nghiệm 4 phương án', tf:'Đúng / Sai', short:'Trả lời ngắn' };
+const TYPE_SHORT = { mcq:'TN', tf:'Đ/S', short:'TLN' };
+const LEVELS = { NB:'Nhận biết', TH:'Thông hiểu', VD:'Vận dụng', VDC:'Vận dụng cao' };
+const PRESETS = {
+  chuan: { name:'Đề chuẩn cấu trúc 2025', mcq:12, tf:4, short:6, min:90 },
+  nhanh: { name:'Ôn nhanh', mcq:8, tf:2, short:2, min:25 },
+  tuychon: { name:'Tùy chọn', mcq:6, tf:2, short:2, min:0 }
+};
+const TF_POINTS = [0, 0.1, 0.25, 0.5, 1];
+
+/* ===================== Trạng thái ===================== */
+const S = {
+  db:null, user:null, sample:null, uid:null, isTeacher:false, ready:false,
+  me:null, bank:{}, customTopics:[], quiz:null, timerId:null, view:null,
+  setup: { grade:12, topics:[], preset:'chuan', counts:{mcq:6,tf:2,short:2}, minutes:0, levels:['NB','TH','VD','VDC'], adaptive:true },
+  aiDrafts:[]
+};
+try { const sv = JSON.parse(localStorage.getItem('onthi-setup')||'null'); if (sv) Object.assign(S.setup, sv); } catch(e){}
+
+/* ===================== Tiện ích ===================== */
+const $ = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const MATH_RE = /(\$\$[\s\S]*?\$\$|\$[^$]*?\$|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\])/;
+function rich(t){
+  return String(t ?? '').split(MATH_RE).map((part,i) => i % 2 ? esc(part) : esc(part).replace(/\n/g,'<br>')).join('');
+}
+const r2 = x => Math.round(x*100)/100;
+const r4 = x => Math.round(x*10000)/10000;
+const pct = x => Math.round(x*100) + '%';
+const fmtDate = t => new Date(t).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'});
+const fmt10 = x => (Math.round(x*100)/100).toLocaleString('vi-VN');
+function newId(p='q'){ return p + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function shuffle(a){ a=[...a]; for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function toast(msg, ms=2600){ const t=$('#toast'); t.textContent=msg; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),ms); }
+function typeset(el){
+  if (!el) return;
+  if (window.MathJax && MathJax.typesetPromise && MathJax.startup && MathJax.startup.document) {
+    try { MathJax.typesetClear([el]); } catch(e){}
+    MathJax.typesetPromise([el]).catch(()=>{});
+  } else window.__mjPending.push(el);
+}
+function allTopics(grade){
+  const base = (BASE_TOPICS[grade]||[]).map(([k,n])=>({key:k,name:n,grade}));
+  return base.concat(S.customTopics.filter(t=>+t.grade===+grade));
+}
+function topicName(key){
+  for (const g of [10,11,12]) { const t = allTopics(g).find(x=>x.key===key); if (t) return t.name; }
+  return key || '—';
+}
+function topicGrade(key){ const m=/^(\d{2})-/.exec(key||''); if(m) return +m[1]; const c=S.customTopics.find(t=>t.key===key); return c? +c.grade : null; }
+function accClass(a){ return a>=0.8?'good':a>=0.5?'warn':'bad'; }
+function accLabel(a){ return a>=0.8?'Vững':a>=0.5?'Cần luyện thêm':'Yếu'; }
+function errMsg(e){
+  const c = e && e.code;
+  if (c==='quota_exceeded') return 'Cơ sở dữ liệu đã đầy: ' + (e.message||'');
+  if (c==='resource_exhausted') return 'Thao tác quá nhanh, vui lòng thử lại sau vài giây.';
+  if (c==='invalid_argument') return 'Bạn chưa có quyền ghi dữ liệu (cần quyền Contributor trở lên).';
+  if (c==='revoked') return 'Quyền truy cập đã thay đổi. Hãy tải lại trang.';
+  if (c==='permission-denied') return 'Bạn không có quyền thực hiện thao tác này (hãy kiểm tra đã đăng nhập, hoặc tài khoản giáo viên đã được thêm vào admins).';
+  if (c==='resource-exhausted') return 'Đã vượt hạn mức miễn phí của Firebase hôm nay hoặc thao tác quá nhanh.';
+  if (c==='unauthenticated') return 'Phiên đăng nhập đã hết, hãy đăng nhập lại.';
+  return (e && e.message) || 'Có lỗi xảy ra.';
+}
+async function withRetry(fn){
+  try { return await fn(); }
+  catch(e){ if (e && e.code==='unavailable'){ await new Promise(r=>setTimeout(r,600+Math.random()*600)); return await fn(); } throw e; }
+}
+
+/* ===================== Modal ===================== */
+function openModal(html, wide=false){ const b=$('#modalBox'); b.className='box'+(wide?' wide':''); b.innerHTML=html; $('#modal').classList.remove('hidden'); typeset(b); return b; }
+function closeModal(){ $('#modal').classList.add('hidden'); $('#modalBox').innerHTML=''; }
+function ask(msg, ok='Đồng ý', cancel='Hủy'){
+  return new Promise(res=>{
+    openModal(`<div style="font-size:15px">${msg}</div><div class="row end mt"><button class="btn ghost" data-x="0">${cancel}</button><button class="btn" data-x="1">${ok}</button></div>`);
+    $$('#modalBox [data-x]').forEach(b=>b.onclick=()=>{ closeModal(); res(b.dataset.x==='1'); });
+  });
+}
+
+/* ===================== Điều hướng ===================== */
+const ROUTES = {
+  'luyen-tap': { label:'Luyện tập', fn:()=>vSetup() },
+  'lich-su': { label:'Lịch sử làm bài', fn:()=>vHistory() },
+  'diem-yeu': { label:'Điểm yếu của tôi', fn:()=>vStats(S.uid, true) },
+  'lop-hoc': { label:'Lớp học', fn:()=>vTeacher(), teacher:true },
+  'ngan-hang': { label:'Ngân hàng câu hỏi', fn:()=>vBank(), teacher:true },
+  'ai-cau-hoi': { label:'Cập nhật câu hỏi bằng AI', fn:()=>vAI(), teacher:true }
+};
+function routeOk(k){
+  if (!ROUTES[k]) return false;
+  if (MODE==='workshop') return k==='ai-cau-hoi';
+  if (MODE==='github' && k==='ai-cau-hoi') return false;
+  return !ROUTES[k].teacher || S.isTeacher;
+}
+function renderNav(){
+  const keys = Object.keys(ROUTES).filter(routeOk);
+  let h=''; keys.forEach((k,i)=>{ if (ROUTES[k].teacher && (i===0 || !ROUTES[keys[i-1]].teacher)) h+='<span class="sep"></span>'; h+=`<button data-r="${k}" class="${S.view===k?'on':''}">${ROUTES[k].label}</button>`; });
+  $('#nav').innerHTML = h;
+  $$('#nav [data-r]').forEach(b=>b.onclick=()=>go(b.dataset.r));
+  const me = S.me;
+  if (MODE==='workshop'){ $('#who').innerHTML='<span class="chip pri">Xưởng soạn câu hỏi</span>'; return; }
+  $('#who').innerHTML = (S.isTeacher ? '<span class="chip pri">Giáo viên</span> <button class="btn ghost sm" id="editMe">Tài khoản</button>' : (me && me.name ? `<span>${esc(me.name)}${me.className?' · '+esc(me.className):''}</span> <button class="btn ghost sm" id="editMe">Sửa</button>` : ''))
+    + (MODE==='github' && S.uid ? ' <button class="btn ghost sm" id="logoutBtn">Đăng xuất</button>' : '');
+  const em=$('#editMe'); if (em) em.onclick=()=>profileModal();
+  const lo=$('#logoutBtn'); if (lo) lo.onclick=async()=>{ if(S.quiz&&!S.quiz.done&&!await ask('Đang làm bài, đăng xuất sẽ hủy bài. Tiếp tục?','Đăng xuất')) return; stopTimer(); S.quiz=null; try{ await firebase.auth().signOut(); }catch(e){} };
+}
+async function go(route, force){
+  if (S.quiz && !S.quiz.done && !force) {
+    const ok = await ask('Bạn đang làm bài. Rời trang sẽ <b>hủy bài làm này</b>. Tiếp tục?', 'Rời trang', 'Ở lại làm bài');
+    if (!ok) return;
+    stopTimer(); S.quiz=null;
+  }
+  if (!routeOk(route)) route = MODE==='workshop' ? 'ai-cau-hoi' : 'luyen-tap';
+  S.view = route;
+  try { if (location.hash !== '#'+route) history.replaceState(null,'','#'+route); } catch(e){ try{ location.hash = route; }catch(_){} }
+  renderNav();
+  window.scrollTo(0,0);
+  ROUTES[route].fn();
+}
+window.addEventListener('hashchange', ()=>{ const r=location.hash.slice(1); if (S.ready && r && r!==S.view && ROUTES[r]) go(r); });
+
+/* ===================== Khởi động ===================== */
+async function init(){
+  if (MODE==='github') return initGithub();
+  if (MODE==='workshop') return initWorkshop();
+  const timeout = setTimeout(()=>{ if(!S.ready) $('#app').innerHTML = '<div class="banner">Chưa kết nối được tới dữ liệu. Hãy kiểm tra mạng, đăng nhập claude.ai và mở lại trang.</div>'; }, 10000);
+  if (!window.claude || !window.claude.use) { clearTimeout(timeout); $('#app').innerHTML='<div class="banner">Trang này cần được mở trên claude.ai (đã đăng nhập) để lưu điểm và tải ngân hàng câu hỏi.</div>'; return; }
+  const [db, user] = await Promise.all([claude.use('db'), claude.use('user')]);
+  S.db = db; S.user = user;
+  if (!db) { clearTimeout(timeout); $('#app').innerHTML='<div class="banner">Bạn cần đăng nhập claude.ai và được giáo viên chia sẻ trang này để sử dụng.</div>'; return; }
+  try { S.isTeacher = !!(user && await user.canEdit()); } catch(e){ S.isTeacher=false; }
+  try { S.uid = user ? await user.id() : null; } catch(e){ S.uid=null; }
+  try {
+    const cfg = await withRetry(()=>db.doc('config/topics').get());
+    if (cfg.exists) S.customTopics = (cfg.data().list||[]).map(t=>({...t}));
+  } catch(e){}
+  if (S.uid) {
+    try { const d = await withRetry(()=>db.doc('students/'+S.uid).get()); S.me = d.exists ? JSON.parse(JSON.stringify(d.data())) : null; } catch(e){ S.me=null; }
+  }
+  S.ready = true; clearTimeout(timeout);
+  const start = location.hash.slice(1);
+  await go(ROUTES[start] ? start : (S.isTeacher ? 'lop-hoc' : 'luyen-tap'), true);
+  if (!S.isTeacher && S.uid && (!S.me || !S.me.name)) profileModal(true);
+}
+
+/* ---- Bản GitHub Pages + Firebase ---- */
+async function loadCommon(){
+  try { const cfg = await withRetry(()=>S.db.doc('config/topics').get()); if (cfg.exists) S.customTopics = (cfg.data().list||[]).map(t=>({...t})); } catch(e){}
+  if (S.uid) { try { const d = await withRetry(()=>S.db.doc('students/'+S.uid).get()); S.me = d.exists ? JSON.parse(JSON.stringify(d.data())) : null; } catch(e){ S.me=null; } }
+}
+function showLogin(msg){
+  $('#nav').innerHTML=''; $('#who').innerHTML='';
+  $('#app').innerHTML=`<div class="card" style="max-width:440px;margin:30px auto;text-align:center;padding:30px">
+    <img src="${LOGO_FULL}" alt="V2P Education" style="width:170px;height:170px">
+    <h1 style="margin-top:6px">V2P Education</h1><p class="muted">Ôn thi THPT môn Toán — luyện theo chủ đề, chấm điểm và lời giải chi tiết.</p>
+    ${msg?`<div class="banner">${esc(msg)}</div>`:''}
+    <button class="btn lg acc" id="loginBtn" style="width:100%">Đăng nhập bằng Google</button>
+    <p class="hint mt">Dùng tài khoản Google (Gmail) của em. Điểm và lịch sử ôn tập được lưu theo tài khoản.</p></div>`;
+  $('#loginBtn').onclick=async()=>{
+    const p=new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({prompt:'select_account'});
+    try{ await firebase.auth().signInWithPopup(p); }
+    catch(e){
+      if (e && /popup|operation-not-supported/.test(e.code||'')) { try{ await firebase.auth().signInWithRedirect(p); }catch(e2){ showLogin(e2.message); } }
+      else if (e && e.code!=='auth/cancelled-popup-request' && e.code!=='auth/popup-closed-by-user') showLogin(e.message||'Đăng nhập không thành công');
+    }
+  };
+}
+async function initGithub(){
+  const cfg = window.FIREBASE_CONFIG;
+  if (!window.firebase || !cfg || !cfg.apiKey || /DIEN_|YOUR_/.test(cfg.apiKey)) { $('#app').innerHTML='<div class="banner">Chưa cấu hình Firebase. Mở file <code>firebase-config.js</code> và dán cấu hình theo hướng dẫn trong README.md.</div>'; return; }
+  firebase.initializeApp(cfg);
+  S.db = firebase.firestore();
+  try { S.db.settings({ ignoreUndefinedProperties:true }); } catch(e){}
+  try { await firebase.auth().getRedirectResult(); } catch(e){}
+  firebase.auth().onAuthStateChanged(async u=>{
+    stopTimer(); S.quiz=null; S.bank={}; S.me=null;
+    if (!u){ S.uid=null; S.authUser=null; S.isTeacher=false; S.ready=false; showLogin(); return; }
+    $('#app').innerHTML='<div class="empty"><span class="spin"></span> Đang tải…</div>';
+    S.uid=u.uid; S.authUser=u;
+    try { const a=await withRetry(()=>S.db.doc('admins/'+u.uid).get()); S.isTeacher=a.exists; } catch(e){ S.isTeacher=false; }
+    await loadCommon();
+    S.ready=true;
+    const start=location.hash.slice(1);
+    await go(routeOk(start) ? start : (S.isTeacher ? 'lop-hoc' : 'luyen-tap'), true);
+    if (!S.isTeacher && (!S.me || !S.me.name)) profileModal(true);
+  });
+}
+/* ---- Bản Xưởng soạn câu hỏi (claude.ai, chỉ AI) ---- */
+async function initWorkshop(){
+  if (window.claude && window.claude.use) { try { S.sample = await claude.use('sample'); } catch(e){ S.sample=null; } }
+  S.isTeacher = true; S.ready = true;
+  try { const d=JSON.parse(localStorage.getItem('v2p-drafts')||'null'); if (Array.isArray(d)) S.aiDrafts=d; } catch(e){}
+  await go('ai-cau-hoi', true);
+}
+function persistDrafts(){ if (MODE!=='workshop') return; try{ localStorage.setItem('v2p-drafts', JSON.stringify(S.aiDrafts||[])); }catch(e){} }
+
+/* ===================== Hồ sơ học sinh ===================== */
+function profileModal(first){
+  const me = S.me || {};
+  openModal(`${first?'<div style="text-align:center"><img src="${LOGO_FULL}" alt="V2P Education" style="width:150px;height:150px"></div>':''}<h2>${first?'Chào mừng bạn đến với V2P Education! 👋':'Thông tin học sinh'}</h2>
+    <p class="muted small">${first?'Nhập họ tên và lớp để thầy/cô theo dõi kết quả ôn tập của bạn.':''}</p>
+    <label class="f">Họ và tên</label><input type="text" id="pfName" value="${esc(me.name||'')}" placeholder="VD: Nguyễn Văn An">
+    <label class="f">Lớp</label><input type="text" id="pfClass" value="${esc(me.className||'')}" placeholder="VD: 12A1">
+    ${MODE==='github'&&S.authUser?`<div class="hint mt">Tài khoản: ${esc(S.authUser.email||'')}<br>Mã tài khoản (UID): <code style="user-select:all">${esc(S.uid)}</code></div>`:''}
+    <div class="row end mt">${first?'':'<button class="btn ghost" id="pfCancel">Hủy</button>'}<button class="btn" id="pfSave">Lưu</button></div>`);
+  if (!first) $('#pfCancel').onclick=closeModal;
+  $('#pfSave').onclick = async ()=>{
+    const name=$('#pfName').value.trim(), cls=$('#pfClass').value.trim().toUpperCase();
+    if (!name) { toast('Vui lòng nhập họ tên'); return; }
+    $('#pfSave').disabled=true;
+    try { await saveMe(d=>{ d.name=name; d.className=cls; }); closeModal(); renderNav(); toast('Đã lưu thông tin'); }
+    catch(e){ toast(errMsg(e)); $('#pfSave').disabled=false; }
+  };
+}
+async function saveMe(mut){
+  const ref = S.db.doc('students/'+S.uid);
+  const snap = await withRetry(()=>ref.get());
+  const d = snap.exists ? JSON.parse(JSON.stringify(snap.data())) : { createdAt:Date.now(), n:0, sum10:0, stats:{topics:{},types:{},levels:{}}, qh:{}, recent:[] };
+  if (S.isTeacher) d.role='teacher';
+  if (S.authUser){ d.email=S.authUser.email||''; d.googleName=S.authUser.displayName||''; }
+  mut(d);
+  d.updatedAt = Date.now();
+  await withRetry(()=>ref.set(d));
+  S.me = d;
+  return d;
+}
+
+/* ===================== Ngân hàng câu hỏi ===================== */
+async function loadBank(grade, force){
+  if (S.bank[grade] && !force) return S.bank[grade];
+  if (!S.db) throw {message:'Chưa kết nối cơ sở dữ liệu'};
+  if (MODE==='github'){
+    // Bộ nhớ đệm trên máy học sinh: chỉ tải lại khi giáo viên đã thay đổi ngân hàng (tiết kiệm hạn mức miễn phí của Firebase)
+    let ver=0; try{ const v=await withRetry(()=>S.db.doc('config/bankver').get()); ver=(v.exists && v.data()['g'+grade]) || 0; }catch(e){}
+    if (!force && ver){ try{ const c=JSON.parse(localStorage.getItem('v2p-bank-'+grade)||'null'); if (c && c.ver===ver && Array.isArray(c.list)){ S.bank[grade]=c.list; return c.list; } }catch(e){} }
+    const snap = await withRetry(()=>S.db.collection('bank').where('grade','==',+grade).get());
+    S.bank[grade] = snap.docs.map(d=>({...d.data(), id:d.id}));
+    if (ver){ try{ localStorage.setItem('v2p-bank-'+grade, JSON.stringify({ver, list:S.bank[grade]})); }catch(e){ try{ localStorage.removeItem('v2p-bank-'+grade); }catch(_){} } }
+    return S.bank[grade];
+  }
+  const out=[]; let last='';
+  for (let guard=0; guard<40; guard++){
+    let q = S.db.collection('bank').where('grade','==',+grade);
+    if (last) q = q.where('k','>',last);
+    const snap = await withRetry(()=>q.orderBy('k').limit(500).get());
+    snap.docs.forEach(d=>{ const x=d.data(); out.push({...JSON.parse(JSON.stringify(x)), id:d.id}); });
+    if (snap.size < 500) break;
+    last = snap.docs[snap.docs.length-1].data().k;
+  }
+  S.bank[grade]=out;
+  return out;
+}
+function cleanQ(q){
+  const o = { type:q.type, grade:+q.grade, topic:q.topic, level:q.level||'TH', stem:String(q.stem||'').trim(), solution:String(q.solution||'').trim(), src:q.src||'manual' };
+  if (q.type==='mcq'){ o.options=(q.options||[]).slice(0,4).map(s=>String(s??'').trim()); o.answer=+q.answer; }
+  else if (q.type==='tf'){ o.statements=(q.statements||[]).slice(0,4).map(s=>String(s??'').trim()); o.answer=(q.answer||[]).slice(0,4).map(v=>v===true||v==='true'||v==='Đ'||v===1); }
+  else { o.answer=String(q.answer??'').trim(); }
+  if (q.img) o.img=q.img;
+  if (q.createdAt) o.createdAt=q.createdAt;
+  return o;
+}
+function validateQ(q){
+  if (!TYPES[q.type]) return 'Dạng câu hỏi không hợp lệ';
+  if (![10,11,12].includes(+q.grade)) return 'Lớp phải là 10, 11 hoặc 12';
+  if (!q.topic) return 'Chưa chọn chủ đề';
+  if (!q.stem) return 'Đề bài đang trống';
+  if (q.type==='mcq'){ if (!q.options || q.options.length!==4 || q.options.some(x=>!x)) return 'Cần đủ 4 phương án'; if (!(q.answer>=0&&q.answer<=3)) return 'Chưa chọn đáp án đúng'; }
+  if (q.type==='tf'){ if (!q.statements || q.statements.length!==4 || q.statements.some(x=>!x)) return 'Cần đủ 4 mệnh đề a, b, c, d'; if (!Array.isArray(q.answer)||q.answer.length!==4) return 'Thiếu đáp án Đ/S'; }
+  if (q.type==='short' && !q.answer) return 'Chưa có đáp số';
+  return null;
+}
+async function bumpBank(grades){
+  if (MODE!=='github') return;
+  const o={}; [...new Set(grades)].forEach(g=>{ if(g) o['g'+g]=Date.now(); });
+  try { await S.db.doc('config/bankver').set(o, {merge:true}); } catch(e){}
+}
+async function saveQuestion(q){
+  const id = q.id || newId();
+  const data = cleanQ(q);
+  const err = validateQ(data); if (err) throw {message:err};
+  data.k = id; data.updatedAt = Date.now(); if (!data.createdAt) data.createdAt = Date.now();
+  await withRetry(()=>S.db.doc('bank/'+id).set(data));
+  const oldG = Object.keys(S.bank).filter(g=>S.bank[g].some(x=>x.id===id)).map(Number);
+  await bumpBank([data.grade, ...oldG]);
+  for (const g of Object.keys(S.bank)) S.bank[g] = S.bank[g].filter(x=>x.id!==id);
+  if (S.bank[data.grade]) S.bank[data.grade].push({...data, id});
+  return id;
+}
+
+/* ===================== Chọn đề ===================== */
+async function vSetup(){
+  const app=$('#app');
+  app.innerHTML = `<h1>Luyện tập</h1><p class="sub">Chọn chủ đề và dạng câu — mỗi lần bấm "Bắt đầu" hệ thống tạo một bộ câu hỏi mới.</p><div class="empty"><span class="spin"></span> Đang tải câu hỏi…</div>`;
+  const st=S.setup;
+  let bank;
+  try { bank = await loadBank(st.grade); } catch(e){ app.innerHTML=`<div class="banner">Không tải được ngân hàng câu hỏi: ${esc(errMsg(e))}</div>`; return; }
+  if (S.view!=='luyen-tap') return;
+  const topics = allTopics(st.grade);
+  st.topics = st.topics.filter(k=>topics.some(t=>t.key===k));
+  const myT = (S.me && S.me.stats && S.me.stats.topics) || {};
+  const cnt = {}; bank.forEach(q=>{ const c=cnt[q.topic]||(cnt[q.topic]={mcq:0,tf:0,short:0}); c[q.type]++; });
+  const p = PRESETS[st.preset];
+  const counts = st.preset==='tuychon' ? st.counts : p;
+  app.innerHTML = `
+  <div class="hero"><div style="position:relative;z-index:1"><h1>Luyện tập cùng V2P</h1><p>Chọn chủ đề và dạng câu — mỗi lần bấm <span class="hl">Bắt đầu</span> là một bộ đề mới, chấm điểm và có lời giải chi tiết.</p></div></div>
+  <div class="card">
+    <div class="row between"><h2 style="margin:0">1. Khối lớp</h2>
+      <div class="seg" id="gradeSeg">${[10,11,12].map(g=>`<button data-g="${g}" class="${st.grade===g?'on':''}">Lớp ${g}</button>`).join('')}</div></div>
+    <div class="row between mt"><h2 style="margin:0">2. Chủ đề ôn tập</h2>
+      <div class="row"><button class="btn ghost sm" id="selAll">Chọn tất cả</button><button class="btn ghost sm" id="selNone">Bỏ chọn</button>${S.me&&S.me.n?'<button class="btn ghost sm" id="selWeak">Chọn chủ đề yếu</button>':''}</div></div>
+    <div class="topics mt" id="topicList">
+      ${topics.map(t=>{ const c=cnt[t.key]||{mcq:0,tf:0,short:0}; const tot=c.mcq+c.tf+c.short; const my=myT[t.key];
+        const badge = my && my.n>=3 ? `<span class="chip ${accClass(my.s/my.n)}">${pct(my.s/my.n)}</span>` : '';
+        return `<label class="topic ${st.topics.includes(t.key)?'on':''}" ${tot?'':'style="opacity:.55"'}><input type="checkbox" value="${t.key}" ${st.topics.includes(t.key)?'checked':''} ${tot?'':'disabled'}>
+        <div style="flex:1"><div class="nm">${esc(t.name)} ${badge}</div><div class="ct">${tot?`TN ${c.mcq} · Đ/S ${c.tf} · TLN ${c.short}`:'Chưa có câu hỏi'}</div></div></label>`; }).join('')}
+    </div>
+  </div>
+  <div class="grid g2 mt">
+    <div class="card">
+      <h2>3. Hình thức đề</h2>
+      <div class="seg" id="presetSeg">${Object.entries(PRESETS).map(([k,v])=>`<button data-p="${k}" class="${st.preset===k?'on':''}">${v.name}</button>`).join('')}</div>
+      <div class="grid g3 mt">
+        <div><label class="f">Trắc nghiệm (0,25đ/câu)</label><input type="number" min="0" max="40" id="cMcq" value="${counts.mcq}" ${st.preset!=='tuychon'?'disabled':''}></div>
+        <div><label class="f">Đúng/Sai (1đ/câu)</label><input type="number" min="0" max="10" id="cTf" value="${counts.tf}" ${st.preset!=='tuychon'?'disabled':''}></div>
+        <div><label class="f">Trả lời ngắn (0,5đ/câu)</label><input type="number" min="0" max="12" id="cShort" value="${counts.short}" ${st.preset!=='tuychon'?'disabled':''}></div>
+      </div>
+      <label class="f">Thời gian làm bài</label>
+      <select id="cMin" ${st.preset!=='tuychon'?'disabled':''}>${[0,10,15,20,30,45,60,90].map(m=>`<option value="${m}" ${(st.preset==='tuychon'?st.minutes:p.min)===m?'selected':''}>${m?m+' phút':'Không giới hạn'}</option>`).join('')}</select>
+      <p class="hint">Đề chuẩn 2025: 12 câu trắc nghiệm, 4 câu Đúng/Sai, 6 câu trả lời ngắn, 90 phút, thang điểm 10.</p>
+    </div>
+    <div class="card">
+      <h2>4. Mức độ & cách chọn câu</h2>
+      <div class="row" id="lvls">${Object.entries(LEVELS).map(([k,v])=>`<label class="chip" style="cursor:pointer;padding:5px 10px"><input type="checkbox" value="${k}" ${st.levels.includes(k)?'checked':''}> ${v}</label>`).join('')}</div>
+      <label class="row mt" style="cursor:pointer;align-items:flex-start"><input type="checkbox" id="adapt" ${st.adaptive?'checked':''} style="margin-top:5px">
+        <div><b>Ưu tiên câu và chủ đề mình hay làm sai</b><div class="hint">Hệ thống dựa vào lịch sử làm bài để chọn nhiều hơn các câu chưa làm, từng làm sai và các chủ đề còn yếu.</div></div></label>
+      <div class="mt" id="availNote"></div>
+      <div class="row end mt"><button class="btn lg acc" id="startBtn">Bắt đầu làm bài →</button></div>
+    </div>
+  </div>`;
+  $$('#gradeSeg button').forEach(b=>b.onclick=()=>{ st.grade=+b.dataset.g; st.topics=[]; persistSetup(); vSetup(); });
+  $$('#presetSeg button').forEach(b=>b.onclick=()=>{ st.preset=b.dataset.p; persistSetup(); vSetup(); });
+  const syncTopics=()=>{ st.topics=$$('#topicList input:checked').map(i=>i.value); $$('#topicList .topic').forEach(l=>l.classList.toggle('on', l.querySelector('input').checked)); persistSetup(); updAvail(); };
+  $$('#topicList input').forEach(i=>i.onchange=syncTopics);
+  $('#selAll').onclick=()=>{ $$('#topicList input:not(:disabled)').forEach(i=>i.checked=true); syncTopics(); };
+  $('#selNone').onclick=()=>{ $$('#topicList input').forEach(i=>i.checked=false); syncTopics(); };
+  if ($('#selWeak')) $('#selWeak').onclick=()=>{ const weak=topics.filter(t=>{const m=myT[t.key]; return m&&m.n>=3&&m.s/m.n<0.7;}).map(t=>t.key); if(!weak.length){toast('Chưa có chủ đề yếu ở lớp này (cần ≥3 câu đã làm, đúng < 70%)');return;} $$('#topicList input').forEach(i=>i.checked=weak.includes(i.value)&&!i.disabled); syncTopics(); };
+  ['cMcq','cTf','cShort','cMin'].forEach(id=>$('#'+id).onchange=()=>{ st.counts={mcq:+$('#cMcq').value||0,tf:+$('#cTf').value||0,short:+$('#cShort').value||0}; st.minutes=+$('#cMin').value; persistSetup(); updAvail(); });
+  $$('#lvls input').forEach(i=>i.onchange=()=>{ st.levels=$$('#lvls input:checked').map(x=>x.value); persistSetup(); updAvail(); });
+  $('#adapt').onchange=()=>{ st.adaptive=$('#adapt').checked; persistSetup(); };
+  function want(){ return st.preset==='tuychon' ? {...st.counts, min:st.minutes} : {mcq:p.mcq,tf:p.tf,short:p.short,min:p.min}; }
+  function pool(){ return bank.filter(q=>st.topics.includes(q.topic) && (!st.levels.length || st.levels.includes(q.level))); }
+  function updAvail(){
+    const w=want(), pl=pool(); const have={mcq:0,tf:0,short:0}; pl.forEach(q=>have[q.type]++);
+    const el=$('#availNote');
+    if (!st.topics.length){ el.innerHTML='<span class="chip warn">Hãy chọn ít nhất 1 chủ đề</span>'; return; }
+    const lack=['mcq','tf','short'].filter(t=>w[t]>have[t]);
+    el.innerHTML = `<div class="small muted">Câu hỏi sẵn có: TN ${have.mcq} · Đ/S ${have.tf} · TLN ${have.short}</div>` + (lack.length?`<div class="small" style="color:var(--warn)">Một số dạng không đủ số câu yêu cầu — đề sẽ lấy tối đa số câu hiện có.</div>`:'');
+  }
+  updAvail();
+  $('#startBtn').onclick=()=>{
+    const w=want(), pl=pool();
+    if (!st.topics.length){ toast('Hãy chọn ít nhất 1 chủ đề'); return; }
+    const items = buildItems(pl, w);
+    if (!items.length){ toast('Không có câu hỏi phù hợp. Hãy chọn thêm chủ đề hoặc mức độ.'); return; }
+    startQuiz({ grade:st.grade, topics:[...st.topics], name: st.preset==='tuychon'?'Đề tùy chọn':PRESETS[st.preset].name, minutes:w.min }, items);
+  };
+}
+function persistSetup(){ try{ localStorage.setItem('onthi-setup', JSON.stringify(S.setup)); }catch(e){} }
+
+function topicAcc(key){ const t=S.me&&S.me.stats&&S.me.stats.topics&&S.me.stats.topics[key]; return t&&t.n? t.s/t.n : null; }
+function weightOf(q, adaptive){
+  if (!adaptive) return 1;
+  let w=1;
+  const h = S.me && S.me.qh && S.me.qh[q.id];
+  if (!h) w += 1.5; else { const a=h[1]/h[0]; w += 3*(1-a); if (a>=1) w *= 0.35; }
+  const ta = topicAcc(q.topic); if (ta!==null) w += 2*(1-ta);
+  return w;
+}
+function pick(pool, n, adaptive){
+  const groups={}; pool.forEach(q=>(groups[q.topic]=groups[q.topic]||[]).push(q));
+  let keys = shuffle(Object.keys(groups));
+  if (adaptive) keys = keys.map(k=>({k, s:(topicAcc(k)??0.6) - Math.random()*0.25})).sort((a,b)=>a.s-b.s).map(x=>x.k);
+  for (const k of keys) groups[k] = groups[k].map(q=>({q, key:Math.pow(Math.random(), 1/weightOf(q,adaptive))})).sort((a,b)=>b.key-a.key).map(x=>x.q);
+  const res=[];
+  while (res.length<n){ let added=false; for (const k of keys){ if (res.length>=n) break; if (groups[k].length){ res.push(groups[k].shift()); added=true; } } if(!added) break; }
+  return res;
+}
+function buildItems(pl, w, adaptive=S.setup.adaptive){
+  const items=[];
+  for (const t of ['mcq','tf','short']) pick(pl.filter(q=>q.type===t), w[t]||0, adaptive).forEach(q=>items.push(mkItem(q)));
+  return items;
+}
+function mkItem(q){ return { q, perm: q.type==='mcq' ? shuffle([0,1,2,3]) : null }; }
+
+/* ===================== Làm bài ===================== */
+function startQuiz(cfg, items){
+  stopTimer();
+  S.quiz = { cfg, items, ans:{}, start:Date.now(), endAt: cfg.minutes ? Date.now()+cfg.minutes*60000 : null, done:false };
+  items.forEach((it,i)=>{ if (it.q.type==='tf') S.quiz.ans[i]=[null,null,null,null]; });
+  vQuiz();
+}
+function stopTimer(){ if (S.timerId){ clearInterval(S.timerId); S.timerId=null; } }
+function partOf(t){ return t==='mcq'?'PHẦN I. Trắc nghiệm nhiều phương án lựa chọn':t==='tf'?'PHẦN II. Trắc nghiệm đúng sai':'PHẦN III. Trắc nghiệm trả lời ngắn'; }
+function vQuiz(){
+  const Q=S.quiz, app=$('#app');
+  $$('#nav button').forEach(b=>b.classList.remove('on'));
+  let h='', lastType=null;
+  Q.items.forEach((it,i)=>{
+    const q=it.q;
+    if (q.type!==lastType){ h+=`<div class="parttitle">${partOf(q.type)}</div>`; lastType=q.type; }
+    h+=`<div class="q" id="q${i}"><div class="qhead"><span class="qnum">Câu ${i+1}.</span><span class="chip">${esc(topicName(q.topic))}</span><span class="chip">${LEVELS[q.level]||''}</span></div>
+      <div class="stem">${rich(q.stem)}</div>${q.img?`<img class="qimg" src="${esc(q.img)}" alt="Hình minh họa">`:''}`;
+    if (q.type==='mcq'){
+      h+=`<div class="opts">${it.perm.map((oi,j)=>`<button class="opt" data-i="${i}" data-o="${oi}"><span class="lt">${'ABCD'[j]}</span><span>${rich(q.options[oi])}</span></button>`).join('')}</div>`;
+    } else if (q.type==='tf'){
+      h+=`<table class="tf">${q.statements.map((s,j)=>`<tr><td><b>${'abcd'[j]})</b></td><td class="st">${rich(s)}</td><td><div class="row" style="flex-wrap:nowrap;gap:6px"><button class="tfb" data-i="${i}" data-j="${j}" data-v="1">Đúng</button><button class="tfb" data-i="${i}" data-j="${j}" data-v="0">Sai</button></div></td></tr>`).join('')}</table>`;
+    } else {
+      h+=`<div class="row mt"><b>Đáp số:</b><input type="text" class="short" data-i="${i}" maxlength="8" placeholder="VD: 1,5" autocomplete="off"></div><div class="hint">Ghi số nguyên hoặc số thập phân (dùng dấu phẩy), tối đa 4 ký tự như phiếu thi.</div>`;
+    }
+    h+='</div>';
+  });
+  app.innerHTML = `<div class="layout"><div>
+    <div class="row between mb"><div><h1 style="margin:0">${esc(Q.cfg.name)}</h1><div class="muted small">Lớp ${Q.cfg.grade} · ${Q.items.length} câu · ${Q.cfg.topics.length} chủ đề</div></div></div>
+    ${h}
+    <div class="row end"><button class="btn lg" id="submit2">Nộp bài</button></div>
+  </div>
+  <aside class="side card">
+    ${Q.endAt?'<div class="timer" id="timer">--:--</div><div class="muted small" style="text-align:center;margin-bottom:12px">Thời gian còn lại</div>':'<div class="timer" id="timer" style="font-size:20px">00:00</div><div class="muted small" style="text-align:center;margin-bottom:12px">Thời gian đã làm</div>'}
+    <div class="navgrid" id="navgrid">${Q.items.map((_,i)=>`<button data-go="${i}">${i+1}</button>`).join('')}</div>
+    <div class="muted small mt" id="progress"></div>
+    <button class="btn" style="width:100%;margin-top:12px" id="submit1">Nộp bài</button>
+    <button class="btn ghost sm" style="width:100%;margin-top:8px" id="quitQ">Hủy bài</button>
+  </aside></div>`;
+  typeset(app);
+  $$('.opt[data-i]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.i; Q.ans[i]=+b.dataset.o; $$(`.opt[data-i="${i}"]`).forEach(x=>x.classList.toggle('sel', x===b)); updProg(); });
+  $$('.tfb').forEach(b=>b.onclick=()=>{ const i=+b.dataset.i, j=+b.dataset.j; Q.ans[i][j]= b.dataset.v==='1'; $$(`.tfb[data-i="${i}"][data-j="${j}"]`).forEach(x=>x.classList.toggle('sel', x===b)); updProg(); });
+  $$('input.short').forEach(inp=>inp.oninput=()=>{ Q.ans[+inp.dataset.i]=inp.value; updProg(); });
+  $$('#navgrid [data-go]').forEach(b=>b.onclick=()=>$('#q'+b.dataset.go).scrollIntoView({behavior:'smooth'}));
+  $('#submit1').onclick=$('#submit2').onclick=()=>trySubmit();
+  $('#quitQ').onclick=async()=>{ if(await ask('Hủy bài đang làm? Kết quả sẽ không được lưu.','Hủy bài','Tiếp tục làm')){ stopTimer(); S.quiz=null; go('luyen-tap',true);} };
+  function updProg(){
+    let n=0; Q.items.forEach((it,i)=>{ const done=isAnswered(it,Q.ans[i]); if(done)n++; const b=$(`#navgrid [data-go="${i}"]`); b.classList.toggle('done', done==='full'); b.classList.toggle('part', done==='part'); });
+    $('#progress').textContent=`Đã làm ${n}/${Q.items.length} câu`;
+  }
+  updProg();
+  const tick=()=>{
+    const el=$('#timer'); if(!el){ stopTimer(); return; }
+    if (Q.endAt){ const left=Math.max(0,Q.endAt-Date.now()); const m=Math.floor(left/60000), s=Math.floor(left%60000/1000); el.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; el.classList.toggle('low', left<5*60000); if(left<=0){ stopTimer(); toast('Hết giờ! Bài làm được nộp tự động.'); submitQuiz(); } }
+    else { const t=Date.now()-Q.start; const m=Math.floor(t/60000), s=Math.floor(t%60000/1000); el.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`; }
+  };
+  tick(); S.timerId=setInterval(tick,1000);
+}
+function isAnswered(it,a){
+  if (it.q.type==='tf'){ const c=(a||[]).filter(v=>v!==null&&v!==undefined).length; return c===4?'full':c?'part':false; }
+  if (it.q.type==='short') return a && String(a).trim() ? 'full' : false;
+  return a!==undefined && a!==null ? 'full' : false;
+}
+async function trySubmit(){
+  const Q=S.quiz; const miss=Q.items.filter((it,i)=>isAnswered(it,Q.ans[i])!=='full').length;
+  const ok = await ask(miss?`Bạn còn <b>${miss}</b> câu chưa làm xong. Vẫn nộp bài?`:'Nộp bài và xem kết quả?', 'Nộp bài', 'Làm tiếp');
+  if (ok) submitQuiz();
+}
+function normNum(s){ return String(s??'').trim().replace(/\s+/g,'').replace(',', '.'); }
+function checkShort(given, answer){
+  const g=normNum(given); if (!g) return false;
+  const alts=String(answer??'').split('|').map(normNum).filter(Boolean);
+  return alts.some(a=>{ const isN=x=>/^[-+]?(\d+\.?\d*|\.\d+)$/.test(x); if (isN(a)&&isN(g)) return Math.abs(parseFloat(a)-parseFloat(g))<1e-9; return a.toLowerCase()===g.toLowerCase(); });
+}
+function gradeItem(q,a){
+  if (q.type==='mcq'){ const ok=a===q.answer; return {f:ok?1:0, p:ok?0.25:0, mx:0.25}; }
+  if (q.type==='tf'){ let k=0; for(let j=0;j<4;j++){ if(a&&a[j]!==null&&a[j]!==undefined&&a[j]===q.answer[j]) k++; } return {f:k/4, p:TF_POINTS[k], mx:1, k}; }
+  const ok=checkShort(a,q.answer); return {f:ok?1:0, p:ok?0.5:0, mx:0.5};
+}
+function snapQ(q){ const o={id:q.id,type:q.type,topic:q.topic,level:q.level,stem:q.stem,solution:q.solution,answer:q.answer}; if(q.options)o.options=q.options; if(q.statements)o.statements=q.statements; if(q.img)o.hasImg=true; return o; }
+async function submitQuiz(){
+  const Q=S.quiz; if (!Q || Q.done) return; Q.done=true; stopTimer();
+  let pts=0, mx=0; const parts={mcq:[0,0],tf:[0,0],short:[0,0]};
+  const items = Q.items.map((it,i)=>{ const a=Q.ans[i]===undefined?null:Q.ans[i]; const g=gradeItem(it.q,a); pts+=g.p; mx+=g.mx; parts[it.q.type][0]+=g.p; parts[it.q.type][1]+=g.mx;
+    return { q:it.q.id, t:it.q.type, tp:it.q.topic, lv:it.q.level, a, f:r4(g.f), p:g.p, mx:g.mx, perm:it.perm, s:snapQ(it.q) }; });
+  Object.keys(parts).forEach(k=>parts[k]=[r2(parts[k][0]),r2(parts[k][1])]);
+  const att = { at:Date.now(), grade:Q.cfg.grade, topics:Q.cfg.topics, name:Q.cfg.name, minutes:Q.cfg.minutes||0, dur:Math.round((Date.now()-Q.start)/1000), pts:r2(pts), max:r2(mx), score10: mx? r2(pts/mx*10) : 0, parts, items };
+  vResult(att, false);
+  if (!S.uid){ toast('Không lưu được điểm: bạn chưa đăng nhập.'); return; }
+  try {
+    const aid = newId('a');
+    const attStore = {...att, items: att.items.map(x=>({...x}))};
+    await withRetry(()=>S.db.doc(`students/${S.uid}/attempts/${aid}`).set(attStore));
+    await saveMe(d=>mergeStats(d, att));
+    const el=$('#saveState'); if (el) el.innerHTML='<span class="chip good">✓ Đã lưu kết quả</span>';
+  } catch(e){ const el=$('#saveState'); if (el) el.innerHTML=`<span class="chip bad">Chưa lưu được: ${esc(errMsg(e))}</span>`; }
+}
+function mergeStats(d, att){
+  d.stats = d.stats || {}; ['topics','types','levels'].forEach(k=>{ d.stats[k]=d.stats[k]||{}; });
+  d.qh = d.qh || {};
+  for (const it of att.items){
+    for (const [b,key] of [['topics',it.tp],['types',it.t],['levels',it.lv]]){ if(!key) continue; const o=d.stats[b][key]||(d.stats[b][key]={n:0,s:0}); o.n++; o.s=r4(o.s+it.f); }
+    const h=d.qh[it.q]||[0,0]; d.qh[it.q]=[h[0]+1, r4(h[1]+it.f)];
+  }
+  d.n=(d.n||0)+1; d.sum10=r2((d.sum10||0)+att.score10); d.last10=att.score10; d.best10=Math.max(d.best10||0, att.score10); d.lastAt=att.at;
+  d.recent=[...(d.recent||[]), [att.at, att.score10]].slice(-40);
+}
+
+/* ===================== Kết quả & xem lại ===================== */
+function vResult(att, isReview, backFn){
+  const app=$('#app');
+  S.quiz = S.quiz && S.quiz.done ? null : S.quiz;
+  const byTopic={}; att.items.forEach(it=>{ const o=byTopic[it.tp]||(byTopic[it.tp]={n:0,s:0}); o.n++; o.s+=it.f; });
+  const wrong = att.items.filter(it=>it.f<1).length;
+  const sc=att.score10;
+  app.innerHTML = `
+  ${backFn?'<button class="btn ghost sm mb" id="backBtn">← Quay lại</button>':''}
+  <div class="grid g2">
+    <div class="card">
+      <div class="muted small">${esc(att.name||'Bài luyện tập')} · Lớp ${att.grade} · ${fmtDate(att.at)}</div>
+      <div class="row" style="align-items:flex-end;gap:14px;margin-top:8px"><div class="big" style="color:${sc>=8?'var(--good)':sc>=5?'var(--warn)':'var(--bad)'}">${fmt10(sc)}</div><div class="muted" style="padding-bottom:6px">/ 10 điểm<br>${fmt10(att.pts)}/${fmt10(att.max)} điểm thô · ${Math.floor(att.dur/60)} phút ${att.dur%60} giây</div></div>
+      <table class="tbl mt"><tr><th>Phần</th><th class="num">Điểm</th></tr>
+        ${['mcq','tf','short'].filter(k=>att.parts[k][1]).map(k=>`<tr><td>${TYPES[k]}</td><td class="num">${fmt10(att.parts[k][0])} / ${fmt10(att.parts[k][1])}</td></tr>`).join('')}
+      </table>
+      <div class="row mt" id="saveState">${isReview?'':'<span class="muted small"><span class="spin"></span> Đang lưu kết quả…</span>'}</div>
+    </div>
+    <div class="card"><h2>Kết quả theo chủ đề</h2><div class="bars">
+      ${Object.entries(byTopic).sort((a,b)=>a[1].s/a[1].n-b[1].s/b[1].n).map(([k,o])=>barRow(topicName(k), o.s/o.n, `${o.n} câu`)).join('')}
+    </div>
+    <div class="row mt">${wrong?'<button class="btn" id="redoWrong">Làm lại các câu sai</button>':''}${isReview?'':'<button class="btn ghost" id="again">Tạo đề mới cùng cấu hình</button>'}</div></div>
+  </div>
+  <div class="row between mt2 mb"><h2 style="margin:0">Xem lại bài làm</h2>
+    <div class="tabs" id="rvTabs" style="margin:0"><button data-f="all" class="on">Tất cả (${att.items.length})</button><button data-f="wrong">Chưa đúng (${wrong})</button><button data-f="right">Đúng (${att.items.length-wrong})</button></div>
+    <button class="btn ghost sm" id="toggleSol">Mở tất cả lời giải</button></div>
+  <div id="rvList">${att.items.map((it,i)=>reviewItem(it,i)).join('')}</div>`;
+  typeset(app);
+  if (backFn) $('#backBtn').onclick=backFn;
+  $$('[data-sol]').forEach(b=>b.onclick=()=>{ const s=$('#sol'+b.dataset.sol); s.classList.toggle('hidden'); b.textContent=s.classList.contains('hidden')?'Xem lời giải chi tiết':'Ẩn lời giải'; });
+  let allOpen=false;
+  $('#toggleSol').onclick=()=>{ allOpen=!allOpen; $$('.sol').forEach(s=>s.classList.toggle('hidden',!allOpen)); $$('[data-sol]').forEach(b=>b.textContent=allOpen?'Ẩn lời giải':'Xem lời giải chi tiết'); $('#toggleSol').textContent=allOpen?'Thu gọn lời giải':'Mở tất cả lời giải'; };
+  $$('#rvTabs button').forEach(b=>b.onclick=()=>{ $$('#rvTabs button').forEach(x=>x.classList.toggle('on',x===b)); const f=b.dataset.f; $$('#rvList .q').forEach(el=>{ const ok=el.dataset.ok==='1'; el.style.display = f==='all'||(f==='right'&&ok)||(f==='wrong'&&!ok)?'':'none'; }); });
+  if ($('#again')) $('#again').onclick=()=>go('luyen-tap',true).then(()=>{});
+  if ($('#redoWrong')) $('#redoWrong').onclick=async()=>{
+    const grade=att.grade; let bank=[]; try{ bank=await loadBank(grade); }catch(e){}
+    const items = att.items.filter(it=>it.f<1).map(it=>{ const live=bank.find(q=>q.id===it.q); return mkItem(live || {...it.s, grade}); });
+    startQuiz({grade, topics:[...new Set(items.map(x=>x.q.topic))], name:'Làm lại các câu sai', minutes:0}, items);
+  };
+}
+function liveImg(id){ for (const g in S.bank){ const q=S.bank[g].find(x=>x.id===id); if(q&&q.img) return q.img; } return null; }
+function ansText(q,a){
+  if (a===null||a===undefined||a==='') return '<i class="muted">(bỏ trống)</i>';
+  if (q.type==='mcq') return 'ABCD'[a]??'?';
+  if (q.type==='short') return esc(a);
+  return '';
+}
+function reviewItem(it,i){
+  const q=it.s || {}; q.type=q.type||it.t;
+  const ok=it.f>=1;
+  const img = q.hasImg ? liveImg(it.q) : null;
+  let body='';
+  if (q.type==='mcq'){
+    const perm=it.perm||[0,1,2,3];
+    body=`<div class="opts">${perm.map((oi,j)=>{ const cls = oi===q.answer?'right':(oi===it.a?'wrong':''); return `<div class="opt ${cls}" style="cursor:default"><span class="lt">${'ABCD'[j]}</span><span>${rich(q.options[oi])}</span></div>`; }).join('')}</div>`;
+    const yourLetter = it.a===null||it.a===undefined ? '<i class="muted">(bỏ trống)</i>' : 'ABCD'[perm.indexOf(it.a)];
+    body+=`<div class="small mt">Bạn chọn: <b>${yourLetter}</b> · Đáp án đúng: <b>${'ABCD'[perm.indexOf(q.answer)]}</b></div>`;
+  } else if (q.type==='tf'){
+    body=`<table class="tf">${q.statements.map((s,j)=>{ const your=it.a?it.a[j]:null; const right=q.answer[j];
+      const yb = your===null||your===undefined ? '<span class="muted small">bỏ trống</span>' : `<span class="tfb ${your===right?'right':'wrong'}" style="cursor:default">${your?'Đúng':'Sai'}</span>`;
+      return `<tr><td><b>${'abcd'[j]})</b></td><td class="st">${rich(s)}</td><td style="white-space:nowrap">${yb} <span class="small muted">→ đáp án:</span> <b style="color:var(--good)">${right?'Đúng':'Sai'}</b></td></tr>`; }).join('')}</table>
+      <div class="small mt">Đúng ${Math.round(it.f*4)}/4 ý → <b>${fmt10(it.p)}</b> điểm</div>`;
+  } else {
+    body=`<div class="small mt">Bạn trả lời: <b>${ansText(q,it.a)}</b> · Đáp số đúng: <b style="color:var(--good)">${esc(String(q.answer).split('|')[0])}</b></div>`;
+  }
+  const badge = ok?'<span class="chip good">✓ Đúng</span>':(it.f>0?'<span class="chip warn">Đúng một phần</span>':'<span class="chip bad">✗ Sai</span>');
+  return `<div class="q" data-ok="${ok?1:0}"><div class="qhead"><span class="qnum">Câu ${i+1}.</span>${badge}<span class="chip">${esc(topicName(it.tp))}</span><span class="chip">${TYPE_SHORT[q.type]}</span><span class="chip">${LEVELS[it.lv]||''}</span><span class="small muted" style="margin-left:auto">${fmt10(it.p)}/${fmt10(it.mx)} đ</span></div>
+    <div class="stem">${rich(q.stem)}</div>${img?`<img class="qimg" src="${esc(img)}" alt="">`:''}${body}
+    <button class="btn ghost sm mt" data-sol="${i}">Xem lời giải chi tiết</button>
+    <div class="sol hidden" id="sol${i}"><b>Lời giải.</b><br>${rich(q.solution||'(Chưa có lời giải)')}</div></div>`;
+}
+function barRow(label, a, extra){
+  return `<div class="bar" title="${esc(label)}: ${pct(a)} ${extra?'· '+esc(extra):''}"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</div><div class="track"><div class="fill ${accClass(a)}" style="width:${Math.max(2,a*100)}%"></div></div><div class="pct">${pct(a)} <span class="muted small" style="font-weight:400">${extra||''}</span></div></div>`;
+}
+
+/* ===================== Lịch sử ===================== */
+async function vHistory(uid=S.uid, el=$('#app'), withTitle=true){
+  if (withTitle) el.innerHTML=`<h1>Lịch sử làm bài</h1><p class="sub">Xem lại các bài đã làm, đáp án và lời giải.</p><div id="histBox"><div class="empty"><span class="spin"></span></div></div>`;
+  else el.innerHTML='<div id="histBox"><div class="empty"><span class="spin"></span></div></div>';
+  const box=$('#histBox', el);
+  if (!uid){ box.innerHTML='<div class="empty">Bạn cần đăng nhập để lưu và xem lịch sử.</div>'; return; }
+  try {
+    const snap = await withRetry(()=>S.db.collection(`students/${uid}/attempts`).orderBy('at','desc').limit(60).get());
+    const list = snap.docs.map(d=>({...JSON.parse(JSON.stringify(d.data())), id:d.id}));
+    if (!list.length){ box.innerHTML='<div class="card empty">Chưa có bài làm nào.</div>'; return; }
+    box.innerHTML = `<div class="card" style="padding:6px 10px"><table class="tbl"><tr><th>Thời gian</th><th>Đề</th><th>Chủ đề</th><th class="num">Số câu</th><th class="num">Điểm /10</th><th></th></tr>
+      ${list.map((a,i)=>`<tr class="click" data-i="${i}"><td>${fmtDate(a.at)}</td><td>${esc(a.name||'')}<div class="muted small">Lớp ${a.grade}</div></td><td class="small">${(a.topics||[]).slice(0,3).map(t=>esc(topicName(t))).join('; ')}${(a.topics||[]).length>3?` (+${a.topics.length-3})`:''}</td><td class="num">${a.items.length}</td><td class="num"><b style="color:${a.score10>=8?'var(--good)':a.score10>=5?'var(--warn)':'var(--bad)'}">${fmt10(a.score10)}</b></td><td class="num"><button class="btn ghost sm">Xem lại</button></td></tr>`).join('')}</table></div>`;
+    $$('tr[data-i]', box).forEach(tr=>tr.onclick=async()=>{ const a=list[+tr.dataset.i]; try{ await loadBank(a.grade); }catch(e){} const back = withTitle ? ()=>go('lich-su',true) : ()=>vStudentDetail(uid); vResult(a, true, back); window.scrollTo(0,0); });
+  } catch(e){ box.innerHTML=`<div class="banner">${esc(errMsg(e))}</div>`; }
+}
+
+/* ===================== Thống kê ===================== */
+function statsHtml(d, own){
+  if (!d || !d.n) return `<div class="card empty">${own?'Bạn chưa làm bài nào. Hãy vào <b>Luyện tập</b> để bắt đầu!':'Học sinh này chưa làm bài nào.'}</div>`;
+  const st=d.stats||{topics:{},types:{},levels:{}};
+  const tps=Object.entries(st.topics||{}).map(([k,o])=>({k,n:o.n,a:o.s/o.n})).sort((a,b)=>a.a-b.a);
+  const weak=tps.filter(t=>t.n>=3&&t.a<0.7).slice(0,4);
+  const avg=d.sum10/d.n;
+  return `
+  <div class="grid g4">
+    <div class="card kpi"><div class="v">${d.n}</div><div class="l">Bài đã làm</div></div>
+    <div class="card kpi"><div class="v">${fmt10(avg)}</div><div class="l">Điểm trung bình</div></div>
+    <div class="card kpi"><div class="v">${fmt10(d.last10)}</div><div class="l">Bài gần nhất</div></div>
+    <div class="card kpi"><div class="v">${fmt10(d.best10)}</div><div class="l">Cao nhất</div></div>
+  </div>
+  <div class="grid g2 mt">
+    <div class="card"><h2>Tiến bộ điểm số</h2>${trendSvg(d.recent||[])}</div>
+    <div class="card"><h2>Điểm yếu cần ôn ngay</h2>
+      ${weak.length?weak.map(t=>`<div class="card weak" style="padding:10px 14px;margin-bottom:8px;box-shadow:none"><div class="row between"><b>${esc(topicName(t.k))}</b><span class="chip bad">${pct(t.a)} đúng</span></div><div class="small muted">Đã làm ${t.n} câu · Lớp ${topicGrade(t.k)||''}</div></div>`).join('')
+        + (own?'<button class="btn mt" id="practiceWeak">Ôn ngay các chủ đề yếu →</button>':'')
+        :'<p class="muted">Chưa phát hiện chủ đề yếu (cần làm ít nhất 3 câu mỗi chủ đề, tỉ lệ đúng dưới 70% mới được đánh dấu).</p>'}
+    </div>
+  </div>
+  <div class="card mt"><div class="row between"><h2 style="margin:0">Tỉ lệ đúng theo chủ đề</h2><div class="row small"><span class="chip good">≥ 80% Vững</span><span class="chip warn">50–79% Cần luyện thêm</span><span class="chip bad">&lt; 50% Yếu</span></div></div>
+    <div class="bars mt">${tps.map(t=>barRow(topicName(t.k), t.a, `${t.n} câu`)).join('')}</div></div>
+  <div class="grid g2 mt">
+    <div class="card"><h2>Theo dạng câu hỏi</h2><div class="bars">${Object.entries(st.types||{}).map(([k,o])=>barRow(TYPES[k]||k, o.s/o.n, `${o.n} câu`)).join('')}</div>
+      <p class="hint">Câu Đúng/Sai tính theo số ý đúng trên 4 ý.</p></div>
+    <div class="card"><h2>Theo mức độ</h2><div class="bars">${['NB','TH','VD','VDC'].filter(k=>st.levels&&st.levels[k]).map(k=>barRow(LEVELS[k], st.levels[k].s/st.levels[k].n, `${st.levels[k].n} câu`)).join('')}</div></div>
+  </div>`;
+}
+function trendSvg(rec){
+  if (rec.length<2) return '<p class="muted">Cần ít nhất 2 bài để vẽ biểu đồ.</p>';
+  const W=520,H=190,pl=30,pr=10,pt=12,pb=24; const n=rec.length;
+  const x=i=>pl+(W-pl-pr)*(n===1?0.5:i/(n-1)), y=v=>pt+(H-pt-pb)*(1-v/10);
+  let g=''; for(const v of [0,5,10]){ g+=`<line x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}" stroke="#e8ebf2"/><text x="${pl-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`; }
+  const path=rec.map((r,i)=>`${i?'L':'M'}${x(i).toFixed(1)},${y(r[1]).toFixed(1)}`).join(' ');
+  const pts=rec.map((r,i)=>`<g><circle cx="${x(i)}" cy="${y(r[1])}" r="10" fill="transparent"><title>${fmtDate(r[0])}: ${fmt10(r[1])} điểm</title></circle><circle cx="${x(i)}" cy="${y(r[1])}" r="4" fill="#ffb926" stroke="#fff" stroke-width="2" pointer-events="none"/></g>`).join('');
+  return `<svg class="trend" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Điểm ${n} bài gần nhất">${g}<path d="${path}" fill="none" stroke="#4b3fe0" stroke-width="2"/>${pts}<text x="${pl}" y="${H-6}">Bài cũ</text><text x="${W-pr}" y="${H-6}" text-anchor="end">Gần nhất</text></svg><div class="hint">Rê chuột (hoặc chạm) vào điểm để xem chi tiết. ${n} bài gần nhất.</div>`;
+}
+async function vStats(uid, own){
+  const app=$('#app');
+  app.innerHTML=`<h1>Điểm yếu của tôi</h1><p class="sub">Thống kê được cập nhật sau mỗi bài làm.</p><div id="stBox"><div class="empty"><span class="spin"></span></div></div>`;
+  try { const d=await withRetry(()=>S.db.doc('students/'+uid).get()); if (d.exists) S.me=JSON.parse(JSON.stringify(d.data())); } catch(e){}
+  $('#stBox').innerHTML = statsHtml(S.me, true);
+  const pw=$('#practiceWeak'); if (pw) pw.onclick=()=>{
+    const tps=Object.entries(S.me.stats.topics).filter(([k,o])=>o.n>=3&&o.s/o.n<0.7).map(([k])=>k);
+    const g=topicGrade(tps[0])||12; S.setup.grade=g; S.setup.topics=tps.filter(k=>topicGrade(k)===g); S.setup.adaptive=true; persistSetup(); go('luyen-tap');
+  };
+}
+
+/* ===================== Giáo viên: lớp học ===================== */
+let TSTATE={cls:'', q:'', list:null};
+async function vTeacher(){
+  const app=$('#app');
+  app.innerHTML=`<h1>Lớp học</h1><p class="sub">Theo dõi điểm và điểm yếu của từng học sinh.</p><div id="tBox"><div class="empty"><span class="spin"></span> Đang tải…</div></div>`;
+  try {
+    const snap=await withRetry(()=>S.db.collection('students').limit(1000).get());
+    TSTATE.list = snap.docs.map(d=>({...JSON.parse(JSON.stringify(d.data())), id:d.id})).filter(s=>s.role!=='teacher');
+  } catch(e){ $('#tBox').innerHTML=`<div class="banner">${esc(errMsg(e))}</div>`; return; }
+  let names={};
+  try { if (S.user && S.user.profiles) names = await S.user.profiles(TSTATE.list.map(s=>s.id)) || {}; } catch(e){}
+  TSTATE.names=names;
+  renderTeacher();
+}
+function renderTeacher(){
+  const box=$('#tBox'); if(!box) return;
+  const all=TSTATE.list||[];
+  if (!all.length){ box.innerHTML=`<div class="card"><h2>Chưa có học sinh nào</h2><p>Để học sinh dùng được trang:</p>${MODE==='github'?'<ol><li>Gửi đường link trang web cho học sinh.</li><li>Học sinh bấm <b>Đăng nhập bằng Google</b>, nhập họ tên và lớp.</li><li>Kết quả các em sẽ hiện ở đây sau bài làm đầu tiên.</li></ol>':'<ol><li>Bấm <b>Share</b> (Chia sẻ) ở góc trang artifact trên claude.ai.</li><li>Thêm học sinh với quyền <b>Contributor</b>.</li><li>Gửi đường link cho học sinh.</li></ol>'}<p class="muted small">Học sinh chỉ xem được điểm của chính mình; thầy/cô xem được của tất cả.</p></div>`; return; }
+  const classes=[...new Set(all.map(s=>s.className||'').filter(Boolean))].sort();
+  const list=all.filter(s=>(!TSTATE.cls||s.className===TSTATE.cls) && (!TSTATE.q || (s.name||'').toLowerCase().includes(TSTATE.q.toLowerCase())));
+  const active=list.filter(s=>s.n);
+  const agg={}; active.forEach(s=>Object.entries((s.stats&&s.stats.topics)||{}).forEach(([k,o])=>{ const a=agg[k]||(agg[k]={n:0,s:0}); a.n+=o.n; a.s+=o.s; }));
+  const totalN=active.reduce((a,s)=>a+s.n,0), avg = active.length? active.reduce((a,s)=>a+s.sum10/s.n,0)/active.length : 0;
+  const weakOf=s=>{ const t=Object.entries((s.stats&&s.stats.topics)||{}).filter(([k,o])=>o.n>=3).map(([k,o])=>({k,a:o.s/o.n})).sort((a,b)=>a.a-b.a)[0]; return t&&t.a<0.7?t:null; };
+  const sorted=[...list].sort((a,b)=>(a.className||'').localeCompare(b.className||'')||(a.name||'').localeCompare(b.name||''));
+  box.innerHTML=`
+  <div class="row mb"><select id="clsSel" style="width:auto"><option value="">Tất cả lớp</option>${classes.map(c=>`<option ${c===TSTATE.cls?'selected':''}>${esc(c)}</option>`).join('')}</select>
+    <input type="text" id="qSearch" placeholder="Tìm tên học sinh…" style="max-width:260px" value="${esc(TSTATE.q)}"><button class="btn ghost sm" id="copyCsv">Sao chép bảng điểm (CSV)</button><button class="btn ghost sm" id="reloadT">Tải lại</button></div>
+  <div class="grid g4">
+    <div class="card kpi"><div class="v">${list.length}</div><div class="l">Học sinh</div></div>
+    <div class="card kpi"><div class="v">${totalN}</div><div class="l">Bài đã làm</div></div>
+    <div class="card kpi"><div class="v">${fmt10(avg)}</div><div class="l">Điểm TB (theo học sinh)</div></div>
+    <div class="card kpi"><div class="v">${active.filter(s=>s.sum10/s.n<5).length}</div><div class="l">Học sinh TB dưới 5</div></div>
+  </div>
+  <div class="card mt" style="padding:6px 10px;overflow:auto"><table class="tbl"><tr><th>Họ tên</th><th>Lớp</th><th class="num">Số bài</th><th class="num">Điểm TB</th><th class="num">Gần nhất</th><th>Lần cuối</th><th>Chủ đề yếu nhất</th></tr>
+    ${sorted.map(s=>{ const w=weakOf(s); const acct=(TSTATE.names[s.id]&&TSTATE.names[s.id].name)||s.googleName||s.email; return `<tr class="click" data-id="${esc(s.id)}"><td><b>${esc(s.name||'(chưa đặt tên)')}</b>${acct&&acct!==s.name?`<div class="muted small">TK: ${esc(acct)}</div>`:''}</td><td>${esc(s.className||'')}</td><td class="num">${s.n||0}</td><td class="num">${s.n?`<b style="color:${s.sum10/s.n>=8?'var(--good)':s.sum10/s.n>=5?'var(--warn)':'var(--bad)'}">${fmt10(s.sum10/s.n)}</b>`:'—'}</td><td class="num">${s.n?fmt10(s.last10):'—'}</td><td class="small">${s.lastAt?fmtDate(s.lastAt):'—'}</td><td class="small">${w?`${esc(topicName(w.k))} <span class="chip bad">${pct(w.a)}</span>`:'<span class="muted">—</span>'}</td></tr>`; }).join('')}
+  </table></div>
+  <div class="card mt"><h2>Tỉ lệ đúng theo chủ đề — ${TSTATE.cls?('lớp '+esc(TSTATE.cls)):'toàn trung tâm'}</h2>
+    ${Object.keys(agg).length?`<div class="bars">${Object.entries(agg).sort((a,b)=>a[1].s/a[1].n-b[1].s/b[1].n).map(([k,o])=>barRow(topicName(k),o.s/o.n,`${o.n} lượt`)).join('')}</div>`:'<p class="muted">Chưa có dữ liệu.</p>'}</div>`;
+  $('#clsSel').onchange=e=>{ TSTATE.cls=e.target.value; renderTeacher(); };
+  $('#qSearch').oninput=e=>{ TSTATE.q=e.target.value; clearTimeout(TSTATE.h); TSTATE.h=setTimeout(()=>{ renderTeacher(); const i=$('#qSearch'); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length);} },250); };
+  $('#reloadT').onclick=()=>vTeacher();
+  $('#copyCsv').onclick=async()=>{
+    const rows=[['Họ tên','Lớp','Số bài','Điểm TB','Điểm gần nhất','Cao nhất','Chủ đề yếu nhất','Tỉ lệ đúng chủ đề yếu']].concat(sorted.map(s=>{ const w=weakOf(s); return [s.name||'',s.className||'',s.n||0,s.n?r2(s.sum10/s.n):'',s.n?s.last10:'',s.n?s.best10:'',w?topicName(w.k):'',w?pct(w.a):'']; }));
+    const csv=rows.map(r=>r.map(v=>{ const t=String(v).replace(/"/g,'""'); return /[",\n;]/.test(t)?`"${t}"`:t; }).join(',')).join('\n');
+    try{ await navigator.clipboard.writeText(csv); toast('Đã sao chép — dán vào Google Sheets hoặc Excel'); }catch(e){ openModal(`<h3>Sao chép bảng điểm</h3><textarea style="min-height:240px">${esc(csv)}</textarea><div class="row end mt"><button class="btn" onclick="closeModal()">Đóng</button></div>`); }
+  };
+  $$('tr[data-id]').forEach(tr=>tr.onclick=()=>vStudentDetail(tr.dataset.id));
+}
+async function vStudentDetail(id){
+  const s=(TSTATE.list||[]).find(x=>x.id===id); const app=$('#app');
+  app.innerHTML=`<button class="btn ghost sm mb" id="backT">← Danh sách lớp</button><h1>${esc(s?s.name:'Học sinh')}</h1><p class="sub">Lớp ${esc(s&&s.className||'—')}</p><div id="sdStats"></div><h2 class="mt2">Các bài đã làm</h2><div id="sdHist"></div>`;
+  $('#backT').onclick=()=>{ $('#app').innerHTML=`<h1>Lớp học</h1><p class="sub">Theo dõi điểm và điểm yếu của từng học sinh.</p><div id="tBox"></div>`; renderTeacher(); };
+  $('#sdStats').innerHTML=statsHtml(s,false);
+  vHistory(id, $('#sdHist'), false);
+}
+
+/* ===================== Giáo viên: ngân hàng ===================== */
+let BSTATE={grade:12, topic:'', type:'', level:'', q:'', page:0};
+async function vBank(){
+  const app=$('#app');
+  app.innerHTML=`<h1>Ngân hàng câu hỏi</h1><p class="sub">Thêm, sửa, xóa và phân loại câu hỏi theo chủ đề. Học sinh thấy câu mới ngay khi lưu.</p><div id="bBox"><div class="empty"><span class="spin"></span></div></div>`;
+  try { await loadBank(BSTATE.grade, true); } catch(e){ $('#bBox').innerHTML=`<div class="banner">${esc(errMsg(e))}</div>`; return; }
+  renderBank();
+}
+function renderBank(){
+  const box=$('#bBox'); if(!box) return;
+  const bank=S.bank[BSTATE.grade]||[]; const topics=allTopics(BSTATE.grade);
+  const cnt={}; bank.forEach(q=>{ const c=cnt[q.topic]||(cnt[q.topic]={mcq:0,tf:0,short:0}); c[q.type]++; });
+  const f=bank.filter(q=>(!BSTATE.topic||q.topic===BSTATE.topic)&&(!BSTATE.type||q.type===BSTATE.type)&&(!BSTATE.level||q.level===BSTATE.level)&&(!BSTATE.q||(q.stem+' '+(q.solution||'')).toLowerCase().includes(BSTATE.q.toLowerCase()))).sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0));
+  const per=15, pages=Math.max(1,Math.ceil(f.length/per)); BSTATE.page=Math.min(BSTATE.page,pages-1);
+  const view=f.slice(BSTATE.page*per,(BSTATE.page+1)*per);
+  box.innerHTML=`
+  <div class="row between mb"><div class="seg" id="bGrade">${[10,11,12].map(g=>`<button data-g="${g}" class="${BSTATE.grade===g?'on':''}">Lớp ${g}</button>`).join('')}</div>
+    <div class="row"><button class="btn" id="addQ">+ Thêm câu hỏi</button><button class="btn ghost" id="impQ">Nhập JSON</button><button class="btn ghost" id="expQ">Xuất JSON</button><button class="btn ghost" id="addTopic">+ Chủ đề</button></div></div>
+  <div class="card" style="overflow:auto"><h3>Số câu theo chủ đề — Lớp ${BSTATE.grade} (tổng ${bank.length})</h3>
+    <table class="tbl matrix"><tr><th>Chủ đề</th><th class="num">TN</th><th class="num">Đ/S</th><th class="num">TLN</th><th class="num">Tổng</th></tr>
+    ${topics.map(t=>{const c=cnt[t.key]||{mcq:0,tf:0,short:0}; const tot=c.mcq+c.tf+c.short; return `<tr class="click" data-t="${t.key}"><td>${esc(t.name)}${t.custom?' <span class="chip">tự thêm</span>':''}</td><td class="num">${c.mcq||'<span class="muted">0</span>'}</td><td class="num">${c.tf||'<span class="muted">0</span>'}</td><td class="num">${c.short||'<span class="muted">0</span>'}</td><td class="num"><b>${tot}</b></td></tr>`;}).join('')}</table>
+    <p class="hint">Bấm một dòng để lọc theo chủ đề. Mỗi chủ đề nên có ≥ 20 câu trắc nghiệm, 5 câu Đ/S, 8 câu trả lời ngắn để đề luôn khác nhau.</p></div>
+  <div class="row mt mb">
+    <select id="fTopic" style="width:auto;max-width:300px"><option value="">Tất cả chủ đề</option>${topics.map(t=>`<option value="${t.key}" ${BSTATE.topic===t.key?'selected':''}>${esc(t.name)}</option>`).join('')}</select>
+    <select id="fType" style="width:auto"><option value="">Mọi dạng</option>${Object.entries(TYPES).map(([k,v])=>`<option value="${k}" ${BSTATE.type===k?'selected':''}>${v}</option>`).join('')}</select>
+    <select id="fLv" style="width:auto"><option value="">Mọi mức độ</option>${Object.entries(LEVELS).map(([k,v])=>`<option value="${k}" ${BSTATE.level===k?'selected':''}>${v}</option>`).join('')}</select>
+    <input type="text" id="fQ" placeholder="Tìm trong đề/lời giải…" style="max-width:240px" value="${esc(BSTATE.q)}">
+    <span class="muted small">${f.length} câu</span></div>
+  <div id="bList">${view.length?view.map(q=>`<div class="q"><div class="qhead"><span class="chip pri">${TYPE_SHORT[q.type]}</span><span class="chip">${esc(topicName(q.topic))}</span><span class="chip">${LEVELS[q.level]||''}</span>${q.src==='ai'?'<span class="chip warn">AI</span>':''}<span style="margin-left:auto" class="row"><button class="btn ghost sm" data-ed="${q.id}">Sửa</button><button class="btn danger sm" data-del="${q.id}">Xóa</button></span></div>${previewHtml(q,true)}</div>`).join(''):'<div class="card empty">Không có câu hỏi phù hợp.</div>'}</div>
+  <div class="row end">${pages>1?`<button class="btn ghost sm" id="pPrev" ${BSTATE.page?'':'disabled'}>‹ Trước</button><span class="small">Trang ${BSTATE.page+1}/${pages}</span><button class="btn ghost sm" id="pNext" ${BSTATE.page<pages-1?'':'disabled'}>Sau ›</button>`:''}</div>`;
+  typeset($('#bList'));
+  $$('#bGrade button').forEach(b=>b.onclick=async()=>{ BSTATE.grade=+b.dataset.g; BSTATE.topic=''; BSTATE.page=0; box.innerHTML='<div class="empty"><span class="spin"></span></div>'; try{ await loadBank(BSTATE.grade,true);}catch(e){} renderBank(); });
+  $$('tr[data-t]').forEach(tr=>tr.onclick=()=>{ BSTATE.topic=tr.dataset.t; BSTATE.page=0; renderBank(); });
+  $('#fTopic').onchange=e=>{BSTATE.topic=e.target.value;BSTATE.page=0;renderBank();};
+  $('#fType').onchange=e=>{BSTATE.type=e.target.value;BSTATE.page=0;renderBank();};
+  $('#fLv').onchange=e=>{BSTATE.level=e.target.value;BSTATE.page=0;renderBank();};
+  $('#fQ').onchange=e=>{BSTATE.q=e.target.value;BSTATE.page=0;renderBank();};
+  if($('#pPrev')){ $('#pPrev').onclick=()=>{BSTATE.page--;renderBank();window.scrollTo(0,0);}; $('#pNext').onclick=()=>{BSTATE.page++;renderBank();window.scrollTo(0,0);}; }
+  $('#addQ').onclick=()=>editorModal({type:'mcq',grade:BSTATE.grade,topic:BSTATE.topic||topics[0].key,level:'TH',options:['','','',''],answer:0,statements:['','','',''],stem:'',solution:''}, ()=>renderBank());
+  $$('[data-ed]').forEach(b=>b.onclick=()=>{ const q=bank.find(x=>x.id===b.dataset.ed); editorModal(JSON.parse(JSON.stringify(q)), ()=>renderBank()); });
+  $$('[data-del]').forEach(b=>b.onclick=async()=>{ if(!await ask('Xóa câu hỏi này khỏi ngân hàng? (Bài làm cũ của học sinh vẫn giữ nội dung câu)','Xóa')) return; try{ await withRetry(()=>S.db.doc('bank/'+b.dataset.del).delete()); await bumpBank([BSTATE.grade]); S.bank[BSTATE.grade]=bank.filter(x=>x.id!==b.dataset.del); toast('Đã xóa'); renderBank(); }catch(e){ toast(errMsg(e)); } });
+  $('#impQ').onclick=importModal;
+  $('#expQ').onclick=()=>{ const data=JSON.stringify(f.map(q=>{const o={...q}; delete o.k; return o;}),null,1); openModal(`<h3>Xuất ${f.length} câu (theo bộ lọc hiện tại)</h3><textarea style="min-height:300px;font-family:monospace;font-size:12px" id="expTa">${esc(data)}</textarea><div class="row end mt"><button class="btn ghost" id="cpExp">Sao chép</button><button class="btn" onclick="closeModal()">Đóng</button></div>`,true); $('#cpExp').onclick=async()=>{ try{await navigator.clipboard.writeText(data);toast('Đã sao chép');}catch(e){ $('#expTa').select(); } }; };
+  $('#addTopic').onclick=topicModal;
+}
+function topicModal(){
+  openModal(`<h2>Thêm chủ đề riêng</h2><p class="muted small">Ví dụ: "Chuyên đề cực trị hàm trị tuyệt đối", "Bài toán thực tế tối ưu".</p>
+   <label class="f">Lớp</label><select id="tpG">${[10,11,12].map(g=>`<option ${g===BSTATE.grade?'selected':''}>${g}</option>`).join('')}</select>
+   <label class="f">Tên chủ đề</label><input type="text" id="tpN">
+   ${S.customTopics.length?`<div class="mt small"><b>Chủ đề đã thêm:</b> ${S.customTopics.map(t=>`<span class="chip">${esc(t.name)} (L${t.grade}) <a href="#" data-rm="${t.key}">✕</a></span>`).join(' ')}</div>`:''}
+   <div class="row end mt"><button class="btn ghost" onclick="closeModal()">Đóng</button><button class="btn" id="tpSave">Thêm</button></div>`);
+  const persist=async(list)=>{ const ref=S.db.doc('config/topics'); await withRetry(()=>ref.set({list, updatedAt:Date.now()})); S.customTopics=list; };
+  $('#tpSave').onclick=async()=>{ const name=$('#tpN').value.trim(); const g=+$('#tpG').value; if(!name) return; const list=[...S.customTopics,{key:`${g}-c${Date.now().toString(36)}`,name,grade:g,custom:true}]; try{ await persist(list); closeModal(); toast('Đã thêm chủ đề'); renderBank(); }catch(e){ toast(errMsg(e)); } };
+  $$('[data-rm]').forEach(a=>a.onclick=async(e)=>{ e.preventDefault(); if(!await ask('Xóa chủ đề này? Các câu hỏi thuộc chủ đề vẫn còn nhưng sẽ không hiển thị tên chủ đề.','Xóa')) return; try{ await persist(S.customTopics.filter(t=>t.key!==a.dataset.rm)); toast('Đã xóa'); renderBank(); }catch(err){ toast(errMsg(err)); } });
+}
+function previewHtml(q, showAns){
+  let h=`<div class="stem">${rich(q.stem)}</div>${q.img?`<img class="qimg" src="${esc(q.img)}" alt="">`:''}`;
+  if (q.type==='mcq') h+=`<div class="opts">${(q.options||[]).map((o,j)=>`<div class="opt ${showAns&&j===+q.answer?'right':''}" style="cursor:default"><span class="lt">${'ABCD'[j]}</span><span>${rich(o)}</span></div>`).join('')}</div>`;
+  else if (q.type==='tf') h+=`<table class="tf">${(q.statements||[]).map((s,j)=>`<tr><td><b>${'abcd'[j]})</b></td><td class="st">${rich(s)}</td><td>${showAns?`<span class="chip ${q.answer&&q.answer[j]?'good':'bad'}">${q.answer&&q.answer[j]?'Đúng':'Sai'}</span>`:''}</td></tr>`).join('')}</table>`;
+  else if (showAns) h+=`<div class="mt small">Đáp số: <b style="color:var(--good)">${esc(q.answer)}</b></div>`;
+  if (showAns) h+=`<details class="mt"><summary class="small" style="cursor:pointer;color:var(--pri)">Lời giải</summary><div class="sol">${rich(q.solution||'(chưa có)')}</div></details>`;
+  return h;
+}
+
+/* ===================== Trình soạn câu hỏi ===================== */
+function editorModal(q, after, opts={}){
+  const b=openModal(`<div class="row between"><h2 style="margin:0">${q.id?'Sửa câu hỏi':'Câu hỏi mới'}</h2><button class="btn ghost sm" onclick="closeModal()">✕</button></div>
+  <div class="grid g2 mt">
+   <div>
+    <div class="grid g3"><div><label class="f">Dạng</label><select id="eType">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}" ${q.type===k?'selected':''}>${v}</option>`).join('')}</select></div>
+      <div><label class="f">Lớp</label><select id="eGrade">${[10,11,12].map(g=>`<option ${+q.grade===g?'selected':''}>${g}</option>`).join('')}</select></div>
+      <div><label class="f">Mức độ</label><select id="eLv">${Object.entries(LEVELS).map(([k,v])=>`<option value="${k}" ${q.level===k?'selected':''}>${v}</option>`).join('')}</select></div></div>
+    <label class="f">Chủ đề</label><select id="eTopic"></select>
+    <label class="f">Đề bài</label><textarea id="eStem" rows="4">${esc(q.stem||'')}</textarea>
+    <div class="hint">Công thức viết bằng LaTeX trong dấu $…$, ví dụ: $\\int_0^1 x^2\\,dx$, $\\frac{a}{b}$, $\\sqrt{3}$.</div>
+    <label class="f">Hình minh họa (không bắt buộc)</label><div class="row"><input type="file" id="eImg" accept="image/*" style="flex:1"><button class="btn ghost sm" id="eImgRm" ${q.img?'':'style="display:none"'}>Bỏ hình</button></div>
+    <div id="eBody"></div>
+    <label class="f">Lời giải chi tiết</label><textarea id="eSol" rows="6">${esc(q.solution||'')}</textarea>
+   </div>
+   <div><label class="f">Xem trước</label><div class="prev" id="ePrev"></div></div>
+  </div>
+  <div class="row end mt"><span class="small" id="eErr" style="color:var(--bad)"></span><button class="btn ghost" onclick="closeModal()">Hủy</button><button class="btn" id="eSave">${opts.saveLabel||'Lưu vào ngân hàng'}</button></div>`, true);
+  const fillTopics=()=>{ const g=+$('#eGrade').value; const ts=allTopics(g); $('#eTopic').innerHTML=ts.map(t=>`<option value="${t.key}" ${t.key===q.topic?'selected':''}>${esc(t.name)}</option>`).join(''); };
+  const body=()=>{
+    const t=$('#eType').value;
+    if (t==='mcq') $('#eBody').innerHTML=`<label class="f">Các phương án (chọn ô tròn ở phương án đúng)</label>${[0,1,2,3].map(j=>`<div class="row" style="margin-bottom:6px;flex-wrap:nowrap"><input type="radio" name="eAns" value="${j}" ${+q.answer===j?'checked':''}><b>${'ABCD'[j]}</b><input type="text" class="eOpt" value="${esc((q.options||[])[j]||'')}"></div>`).join('')}`;
+    else if (t==='tf') $('#eBody').innerHTML=`<label class="f">4 mệnh đề và đáp án Đúng/Sai</label>${[0,1,2,3].map(j=>`<div class="row" style="margin-bottom:6px;flex-wrap:nowrap"><b>${'abcd'[j]})</b><input type="text" class="eSt" value="${esc((q.statements||[])[j]||'')}"><select class="eTf" style="width:90px"><option value="1" ${Array.isArray(q.answer)&&q.answer[j]?'selected':''}>Đúng</option><option value="0" ${Array.isArray(q.answer)&&!q.answer[j]?'selected':''}>Sai</option></select></div>`).join('')}`;
+    else $('#eBody').innerHTML=`<label class="f">Đáp số</label><input type="text" id="eAnsS" value="${esc(typeof q.answer==='string'?q.answer:'')}" placeholder="VD: 1,5"><div class="hint">Tối đa 4 ký tự như phiếu thi. Nhiều đáp số chấp nhận được thì ngăn cách bằng dấu | (VD: 0,5|-0,5).</div>`;
+    $$('#eBody input,#eBody select').forEach(x=>x.oninput=x.onchange=sync);
+  };
+  const read=()=>{ const t=$('#eType').value; const o={...q, type:t, grade:+$('#eGrade').value, topic:$('#eTopic').value, level:$('#eLv').value, stem:$('#eStem').value, solution:$('#eSol').value};
+    if (t==='mcq'){ o.options=$$('.eOpt').map(x=>x.value); const c=$('input[name=eAns]:checked'); o.answer=c?+c.value:-1; delete o.statements; }
+    else if (t==='tf'){ o.statements=$$('.eSt').map(x=>x.value); o.answer=$$('.eTf').map(x=>x.value==='1'); delete o.options; }
+    else { o.answer=$('#eAnsS').value; delete o.options; delete o.statements; }
+    return o; };
+  let tm; const sync=()=>{ clearTimeout(tm); tm=setTimeout(()=>{ Object.assign(q, read()); const p=$('#ePrev'); if(!p) return; p.innerHTML=previewHtml(q,true); const d=p.querySelector('details'); if(d) d.open=true; typeset(p); },350); };
+  fillTopics(); body(); sync();
+  $('#eType').onchange=()=>{ const t=$('#eType').value; if(t==='tf'&&!Array.isArray(q.answer)) q.answer=[true,true,false,false]; if(t==='mcq'&&typeof q.answer!=='number') q.answer=0; if(t==='short'&&typeof q.answer!=='string') q.answer=''; q.type=t; body(); sync(); };
+  $('#eGrade').onchange=()=>{ q.grade=+$('#eGrade').value; fillTopics(); sync(); };
+  ['eTopic','eLv','eStem','eSol'].forEach(id=>$('#'+id).oninput=$('#'+id).onchange=sync);
+  $('#eImg').onchange=async()=>{ const f=$('#eImg').files[0]; if(!f) return; try{ q.img=await fileToDataURL(f,720); $('#eImgRm').style.display=''; sync(); }catch(e){ toast('Không đọc được ảnh'); } };
+  $('#eImgRm').onclick=()=>{ delete q.img; $('#eImg').value=''; $('#eImgRm').style.display='none'; sync(); };
+  $('#eSave').onclick=async()=>{
+    const o=read(); const err=validateQ(cleanQ(o)); if(err){ $('#eErr').textContent=err; return; }
+    if (opts.onSave){ opts.onSave(o); closeModal(); return; }
+    $('#eSave').disabled=true; $('#eErr').textContent='';
+    try{ await saveQuestion(o); closeModal(); toast('Đã lưu câu hỏi'); after&&after(); }catch(e){ $('#eErr').textContent=errMsg(e); $('#eSave').disabled=false; }
+  };
+}
+function fileToDataURL(file,max=720){ return new Promise((res,rej)=>{ const img=new Image(); const url=URL.createObjectURL(file); img.onload=()=>{ const sc=Math.min(1,max/img.width); const c=document.createElement('canvas'); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc); const x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',0.82)); }; img.onerror=()=>{URL.revokeObjectURL(url);rej();}; img.src=url; }); }
+function importModal(){
+  const ws=window.V2P_WORKSHOP_URL;
+  openModal(`<h2>Nhập câu hỏi từ JSON</h2>${MODE==='github'?`<div class="banner">Để lấy câu hỏi từ <b>file PDF</b> hoặc nhờ <b>AI soạn câu mới</b>: mở ${ws?`<a href="${esc(ws)}" target="_blank" rel="noopener">Xưởng soạn câu hỏi V2P</a>`:'Xưởng soạn câu hỏi V2P trên claude.ai'}, duyệt câu rồi bấm "Xuất JSON" và dán vào ô dưới đây.</div>`:''}<p class="small muted">Dán một mảng JSON. Mỗi câu gồm: type (mcq/tf/short), grade, topic (mã chủ đề), level (NB/TH/VD/VDC), stem, options[4] + answer 0–3 (mcq), statements[4] + answer [true/false ×4] (tf), answer chuỗi (short), solution.</p>
+   <textarea id="impTa" style="min-height:260px;font-family:monospace;font-size:12px" placeholder='[{"type":"mcq","grade":12,"topic":"12-tichphan","level":"NB","stem":"...","options":["..","..","..",".."],"answer":0,"solution":"..."}]'></textarea>
+   <details class="mt small"><summary style="cursor:pointer">Danh sách mã chủ đề</summary><div style="max-height:200px;overflow:auto">${[10,11,12].map(g=>allTopics(g).map(t=>`<div><code>${t.key}</code> — ${esc(t.name)}</div>`).join('')).join('')}</div></details>
+   <div class="row end mt"><span class="small" id="impMsg"></span><button class="btn ghost" onclick="closeModal()">Hủy</button><button class="btn" id="impGo">Nhập</button></div>`, true);
+  $('#impGo').onclick=async()=>{
+    let arr; try{ arr=JSON.parse($('#impTa').value); if(!Array.isArray(arr)) arr=[arr]; }catch(e){ $('#impMsg').textContent='JSON không hợp lệ'; return; }
+    await saveMany(arr.map(o=>({...o, src:o.src||'import', id:undefined})), $('#impMsg'), $('#impGo'));
+  };
+}
+async function saveMany(arr, msgEl, btn){
+  const bad=[]; arr.forEach((o,i)=>{ const e=validateQ(cleanQ(o)); if(e) bad.push(`Câu ${i+1}: ${e}`); });
+  if (bad.length){ msgEl.innerHTML=`<span style="color:var(--bad)">${esc(bad.slice(0,3).join('; '))}${bad.length>3?'…':''}</span>`; return false; }
+  if (btn) btn.disabled=true; let ok=0;
+  for (const o of arr){ try{ await saveQuestion(o); ok++; msgEl.textContent=`Đã lưu ${ok}/${arr.length}…`; }catch(e){ msgEl.textContent=`Dừng ở câu ${ok+1}: ${errMsg(e)}`; if(btn) btn.disabled=false; return false; } }
+  closeModal(); toast(`Đã thêm ${ok} câu vào ngân hàng`); if (S.view==='ngan-hang') renderBank();
+  return true;
+}
+
+/* ===================== AI: sinh & nhập câu hỏi ===================== */
+let ASTATE={tab:'gen', grade:12, topic:'12-khaosat', type:'mcq', level:'TH', count:5, note:'', raw:'', busy:false};
+function topicListText(){ return [10,11,12].map(g=>allTopics(g).map(t=>`${t.key}: ${t.name} (lớp ${g})`).join('\n')).join('\n'); }
+const AI_SCHEMA = `Mỗi câu là một object JSON có các trường:
+- "type": "mcq" (trắc nghiệm 4 phương án) | "tf" (đúng/sai 4 ý) | "short" (trả lời ngắn)
+- "grade": 10 | 11 | 12
+- "topic": mã chủ đề trong danh sách cho trước
+- "level": "NB" | "TH" | "VD" | "VDC"
+- "stem": đề bài (với "tf" là phần dẫn chung)
+- "options": mảng đúng 4 chuỗi, KHÔNG ghi "A." "B." ở đầu (chỉ với mcq)
+- "statements": mảng đúng 4 mệnh đề a, b, c, d, KHÔNG ghi "a)" ở đầu (chỉ với tf)
+- "answer": với mcq là số 0-3 (vị trí phương án đúng); với tf là mảng 4 giá trị true/false; với short là chuỗi đáp số tối đa 4 ký tự, dùng dấu phẩy thập phân, ví dụ "1,5" hoặc "-12" (đề phải yêu cầu làm tròn nếu kết quả không đẹp)
+- "solution": lời giải chi tiết từng bước, giải thích vì sao từng ý đúng/sai với dạng tf.
+Viết mọi công thức toán bằng LaTeX đặt trong $...$. Vì là JSON nên mỗi dấu \\ trong LaTeX phải viết thành \\\\ (ví dụ "\\\\frac{1}{2}"). Dùng \\n để xuống dòng.`;
+function extractJsonArray(text){
+  let t=String(text||'').trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
+  const a=t.indexOf('['), b=t.lastIndexOf(']');
+  if (a<0||b<a) throw {message:'AI không trả về đúng định dạng JSON'};
+  const arr=JSON.parse(t.slice(a,b+1));
+  if (!Array.isArray(arr)) throw {message:'Kết quả không phải danh sách câu hỏi'};
+  return arr;
+}
+async function vAI(){
+  const app=$('#app');
+  if (!S.sample) { try{ S.sample=await claude.use('sample'); }catch(e){ S.sample=null; } }
+  let canImg=false; try{ canImg=!!(S.sample&&S.sample.limits&&(await S.sample.limits()).images); }catch(e){}
+  const A=ASTATE;
+  app.innerHTML=`<h1>${MODE==='workshop'?'Xưởng soạn câu hỏi V2P':'Cập nhật câu hỏi bằng AI'}</h1><p class="sub">${MODE==='workshop'?'AI soạn câu mới theo chủ đề hoặc tách – phân loại – giải đề từ file PDF/ảnh. Duyệt xong bấm <b>Xuất JSON</b> rồi dán vào trang V2P Education (Ngân hàng câu hỏi → Nhập JSON). Các câu đang duyệt được giữ lại trên máy này kể cả khi tải lại trang.':'AI soạn câu mới theo chủ đề, hoặc tự tách – phân loại – giải đề thầy/cô dán vào. Câu hỏi chỉ vào ngân hàng sau khi thầy/cô duyệt.'}</p>
+  ${S.sample?'':'<div class="banner">Tính năng AI chưa sẵn sàng trong phiên xem này (cần mở trang trên claude.ai và cho phép trang dùng Claude).</div>'}
+  <div class="tabs" id="aiTabs"><button data-t="gen" class="${A.tab==='gen'?'on':''}">Soạn câu mới theo chủ đề</button><button data-t="imp" class="${A.tab==='imp'?'on':''}">Nhập đề có sẵn & phân loại tự động</button></div>
+  <div class="card" id="aiForm"></div>
+  <div class="mt2" id="aiProgBox"></div>
+  <div class="mt" id="aiOut"></div>`;
+  $$('#aiTabs button').forEach(b=>b.onclick=()=>{ A.tab=b.dataset.t; vAI(); });
+  const form=$('#aiForm');
+  if (A.tab==='gen'){
+    form.innerHTML=`<div class="grid g4">
+      <div><label class="f">Lớp</label><select id="aG">${[10,11,12].map(g=>`<option ${A.grade===g?'selected':''}>${g}</option>`).join('')}</select></div>
+      <div style="grid-column:span 3"><label class="f">Chủ đề</label><select id="aT"></select></div>
+      <div><label class="f">Dạng</label><select id="aY">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}" ${A.type===k?'selected':''}>${v}</option>`).join('')}</select></div>
+      <div><label class="f">Mức độ</label><select id="aL">${Object.entries(LEVELS).map(([k,v])=>`<option value="${k}" ${A.level===k?'selected':''}>${v}</option>`).join('')}</select></div>
+      <div><label class="f">Số câu</label><select id="aN">${[3,5,8,10].map(n=>`<option ${A.count===n?'selected':''}>${n}</option>`).join('')}</select></div>
+      <div></div></div>
+      <label class="f">Yêu cầu thêm (không bắt buộc)</label><textarea id="aNote" rows="2" placeholder="VD: tập trung bài toán thực tế; bám sát đề minh họa 2025; có câu đọc đồ thị/bảng biến thiên mô tả bằng lời…">${esc(A.note)}</textarea>
+      <div class="row end mt"><button class="btn" id="aGo" ${S.sample?'':'disabled'}>Soạn câu hỏi</button></div>`;
+    const fillT=()=>{ $('#aT').innerHTML=allTopics(A.grade).map(t=>`<option value="${t.key}" ${A.topic===t.key?'selected':''}>${esc(t.name)}</option>`).join(''); A.topic=$('#aT').value; };
+    fillT();
+    $('#aG').onchange=()=>{ A.grade=+$('#aG').value; fillT(); };
+    $('#aT').onchange=()=>A.topic=$('#aT').value; $('#aY').onchange=()=>A.type=$('#aY').value; $('#aL').onchange=()=>A.level=$('#aL').value; $('#aN').onchange=()=>A.count=+$('#aN').value; $('#aNote').oninput=()=>A.note=$('#aNote').value;
+    $('#aGo').onclick=async()=>{
+      let existing=[]; try{ existing=(await loadBank(A.grade)).filter(q=>q.topic===A.topic&&q.type===A.type).slice(-12).map(q=>'- '+q.stem.slice(0,140).replace(/\n/g,' ')); }catch(e){}
+      const prompt=`Bạn là giáo viên Toán THPT giàu kinh nghiệm ở Việt Nam, ra đề theo cấu trúc đề thi tốt nghiệp THPT từ năm 2025 (chương trình GDPT 2018).
+Hãy soạn ${A.count} câu hỏi MỚI, dạng "${TYPES[A.type]}" (type="${A.type}"), lớp ${A.grade}, chủ đề "${topicName(A.topic)}" (topic="${A.topic}"), mức độ ${LEVELS[A.level]} (level="${A.level}").
+${A.note?'Yêu cầu thêm của giáo viên: '+A.note+'\n':''}Yêu cầu chất lượng:
+- Đúng kiến thức, đúng phạm vi chương trình. Tự giải lại từng câu và kiểm tra đáp án thật cẩn thận trước khi trả lời.
+- Trắc nghiệm: các phương án nhiễu hợp lý (đến từ lỗi sai thường gặp), vị trí đáp án đúng phân bố đều.
+- Đúng/Sai: 4 ý tăng dần độ khó, có cả ý đúng và ý sai.
+- Trả lời ngắn: đáp số ghi được bằng tối đa 4 ký tự (gồm chữ số, dấu "-" và dấu ","), nếu cần thì đề ghi rõ "làm tròn đến hàng phần mười/phần trăm".
+- Không dùng hình vẽ; nếu cần hình thì mô tả đầy đủ bằng lời.
+${existing.length?'Không trùng với các câu đã có:\n'+existing.join('\n')+'\n':''}
+${AI_SCHEMA}
+
+Chỉ trả về MỘT mảng JSON gồm ${A.count} object, không thêm bất kỳ chữ nào khác.`;
+      await runAI(prompt, [], {grade:A.grade, topic:A.topic, type:A.type, level:A.level});
+    };
+  } else {
+    form.innerHTML=`<div class="grid g2">
+      <div><h3>📄 Tải file PDF đề thi</h3>
+        <input type="file" id="aPdf" accept="application/pdf,.pdf">
+        <div id="pdfInfo" class="mt small muted">Hỗ trợ đề thi thử, đề kiểm tra, file chuyên đề… AI xử lý lần lượt từng 2 trang để không bỏ sót câu.</div></div>
+      <div><h3>✍️ Hoặc dán nội dung / ảnh chụp</h3>
+        <textarea id="aRaw" rows="6" placeholder="Dán đề thi thử, đề kiểm tra, hoặc từng câu hỏi vào đây…">${esc(A.raw)}</textarea>
+        ${canImg?`<label class="f">Ảnh chụp đề (tối đa 4 ảnh)</label><input type="file" id="aImgs" accept="image/*" multiple>`:''}</div>
+    </div>
+    <div class="hint mt">AI sẽ tách từng câu, xác định dạng (trắc nghiệm / đúng sai / trả lời ngắn), phân loại lớp – chủ đề – mức độ, xác định đáp án và viết lời giải chi tiết. Câu tự luận có đáp số là số sẽ được chuyển thành dạng trả lời ngắn.</div>
+    <div class="row end mt"><button class="btn" id="aGo2" ${S.sample?'':'disabled'}>Phân tích & phân loại</button></div>`;
+    $('#aRaw').oninput=()=>A.raw=$('#aRaw').value;
+    let pdfDoc=null;
+    $('#aPdf').onchange=async()=>{
+      const f=$('#aPdf').files[0]; const info=$('#pdfInfo'); pdfDoc=null;
+      if(!f){ info.textContent=''; return; }
+      info.innerHTML='<span class="spin"></span> Đang mở file PDF…';
+      try{
+        pdfDoc=await openPdf(f);
+        const n=pdfDoc.numPages;
+        let sampleText=''; try{ sampleText=await pageText(pdfDoc,1); }catch(e){}
+        const scanned = sampleText.replace(/\s/g,'').length<40;
+        info.innerHTML=`<div><b>${esc(f.name)}</b> — ${n} trang ${scanned?'<span class="chip warn">có vẻ là bản scan</span>':'<span class="chip good">có lớp chữ</span>'}</div>
+          <div class="grid g3 mt"><div><label class="f">Từ trang</label><input type="number" id="pFrom" min="1" max="${n}" value="1"></div>
+          <div><label class="f">Đến trang</label><input type="number" id="pTo" min="1" max="${n}" value="${Math.min(n,20)}"></div>
+          <div><label class="f">Trang bảng đáp án</label><input type="text" id="pAns" placeholder="VD: ${n}  hoặc  ${Math.max(1,n-1)}-${n}"></div></div>
+          <label class="row mt" style="gap:6px;cursor:pointer"><input type="checkbox" id="pImg" ${canImg?'checked':'disabled'}> Gửi kèm ảnh từng trang cho AI (đọc công thức, hình vẽ, bản scan chính xác hơn)</label>
+          ${!canImg&&scanned?'<div class="banner mt">File scan cần gửi ảnh cho AI nhưng phiên này chưa hỗ trợ ảnh — kết quả có thể trống.</div>':''}
+          <div class="hint">Mỗi lượt AI xử lý 2 trang (khoảng 1–2 phút/lượt). File dài nên chia nhỏ phạm vi trang. Nếu đáp án nằm ở cuối file, ghi số trang bảng đáp án để AI đối chiếu.</div>`;
+      }catch(e){ info.innerHTML=`<span style="color:var(--bad)">${esc(e.message||'Không đọc được file PDF')}</span>`; }
+    };
+    $('#aGo2').onclick=async()=>{
+      if (pdfDoc){
+        const n=pdfDoc.numPages, from=Math.max(1,+$('#pFrom').value||1), to=Math.min(n,+$('#pTo').value||n);
+        if (to<from){ toast('Phạm vi trang không hợp lệ'); return; }
+        const ansPages=parsePages($('#pAns').value, n);
+        await runPdf(pdfDoc, from, to, ansPages, $('#pImg').checked);
+        return;
+      }
+      const files = $('#aImgs') ? [...$('#aImgs').files].slice(0,4) : [];
+      if (!A.raw.trim() && !files.length){ toast('Hãy chọn file PDF, dán nội dung đề hoặc chọn ảnh'); return; }
+      await runAI(importPrompt(A.raw, files.length>0, ''), files, null);
+    };
+  }
+  renderDrafts();
+}
+function importPrompt(text, hasImg, extra){
+  return `Bạn là giáo viên Toán THPT ở Việt Nam. Dưới đây là nội dung một đề/bộ câu hỏi${hasImg?' (kèm ảnh chụp/ảnh trang — hãy đọc kỹ ảnh, ưu tiên ảnh khi văn bản bị lỗi font hoặc mất công thức)':''}.
+Nhiệm vụ:
+1. Tách từng câu hỏi riêng biệt.
+2. Xác định dạng: "mcq" (có 4 phương án A-D), "tf" (có 4 ý a-d đúng/sai), "short" (trả lời ngắn/điền đáp số). Câu tự luận có đáp số là một số thì chuyển thành "short". Câu không thể chuyển (chứng minh, vẽ hình…) thì bỏ qua.
+3. Phân loại lớp và chủ đề theo đúng danh sách mã sau:
+${topicListText()}
+4. Đánh giá mức độ NB/TH/VD/VDC.
+5. Giải chi tiết từng câu và xác định đáp án. Nếu đề có sẵn đáp án thì dùng nhưng vẫn kiểm tra lại; nếu thấy đáp án có sẵn sai thì theo kết quả đúng và ghi chú trong lời giải.
+6. Giữ nguyên nội dung đề, chỉ chuẩn hóa công thức sang LaTeX. Bỏ phần đầu trang/chân trang, số trang, tên trường, mã đề. Nếu câu cần hình vẽ, mô tả hình bằng lời trong đề.
+${extra||''}
+${AI_SCHEMA}
+
+Nội dung đề:
+"""
+${text||'(xem ảnh đính kèm)'}
+"""
+
+Chỉ trả về MỘT mảng JSON (có thể rỗng [] nếu không có câu nào), không thêm bất kỳ chữ nào khác.`;
+}
+function parsePages(s, n){
+  const out=new Set();
+  String(s||'').split(/[,;\s]+/).forEach(p=>{ const m=/^(\d+)(?:-(\d+))?$/.exec(p.trim()); if(!m) return; const a=+m[1], b=m[2]?+m[2]:a; for(let i=Math.max(1,a);i<=Math.min(n,b);i++) out.add(i); });
+  return [...out].sort((a,b)=>a-b);
+}
+/* ---- Đọc PDF bằng pdf.js (chạy trên luồng chính) ---- */
+let PDFJS=null;
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('Không tải được thư viện đọc PDF. Kiểm tra mạng và thử lại.')); document.head.appendChild(s); }); }
+async function getPdfJs(){
+  if (PDFJS) return PDFJS;
+  const base='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  if (!window.pdfjsLib) await loadScript(base+'pdf.min.js');
+  if (!window.pdfjsWorker) await loadScript(base+'pdf.worker.min.js');
+  PDFJS=window.pdfjsLib;
+  if (!PDFJS) throw new Error('Không khởi động được thư viện đọc PDF.');
+  try{ PDFJS.GlobalWorkerOptions.workerSrc=base+'pdf.worker.min.js'; }catch(e){}
+  return PDFJS;
+}
+async function openPdf(file){
+  const lib=await getPdfJs();
+  const buf=await file.arrayBuffer();
+  return await lib.getDocument({data:new Uint8Array(buf), isEvalSupported:false, useSystemFonts:true}).promise;
+}
+async function pageText(pdf,n){
+  const p=await pdf.getPage(n); const tc=await p.getTextContent();
+  let out='', lastY=null;
+  for (const it of tc.items){ if(!('str' in it)) continue; const y=it.transform[5]; if(lastY!==null&&Math.abs(y-lastY)>3) out+='\n'; else if(out&&!/\s$/.test(out)) out+=' '; out+=it.str; lastY=y; if(it.hasEOL){ out+='\n'; lastY=null; } }
+  return out.replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+}
+async function pageImage(pdf,n){
+  const p=await pdf.getPage(n); const vp0=p.getViewport({scale:1}); const scale=Math.min(2.2,1500/vp0.width); const vp=p.getViewport({scale});
+  const c=document.createElement('canvas'); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+  const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
+  await p.render({canvasContext:ctx, viewport:vp}).promise;
+  return await new Promise(r=>c.toBlob(r,'image/jpeg',0.8));
+}
+function normDraft(o, defaults){
+  const q={...(defaults||{}), ...o, src:'ai'};
+  if(defaults){ q.grade=defaults.grade; q.topic=q.topic||defaults.topic; }
+  q.grade=+q.grade||topicGrade(q.topic)||12;
+  if(q.type==='short') q.answer=String(q.answer??'');
+  return q;
+}
+function aiErrorHtml(e){
+  if (e && e.code==='not_granted') return 'Trang chưa được phép dùng Claude. Hãy cho phép khi được hỏi và thử lại.';
+  if (e && e.code==='rate_limited') return 'Đã gọi AI quá nhiều trong thời gian ngắn. Vui lòng đợi một lúc rồi thử lại.';
+  if (e && (e.name==='AbortError'||e.code==='aborted')) return 'Đã dừng.';
+  return `Lỗi: ${esc((e&&e.message)||'không rõ')}. Hãy thử lại hoặc giảm số câu/số trang.`;
+}
+function progBox(html){ const b=$('#aiProgBox'); if(b) b.innerHTML=html; }
+async function runAI(prompt, images, defaults){
+  if (ASTATE.busy) return; ASTATE.busy=true;
+  const ctrl=new AbortController();
+  progBox(`<div class="card"><span class="spin"></span> <span id="aiProg">AI đang soạn và tự kiểm tra lời giải… (có thể mất 1–3 phút)</span> <button class="btn ghost sm" id="aiStop" style="margin-left:10px">Dừng</button></div>`);
+  $('#aiStop').onclick=()=>ctrl.abort();
+  try{
+    const opt={ modelTier:'complex', signal:ctrl.signal, onText:({text})=>{ const p=$('#aiProg'); if(p) p.textContent=`AI đang viết… ${text.length.toLocaleString('vi-VN')} ký tự`; } };
+    if (images.length) opt.images=images;
+    const res=await S.sample(prompt, opt);
+    const drafts=extractJsonArray(res.text).map(o=>normDraft(o,defaults));
+    S.aiDrafts = drafts.map(q=>({q, on:true}));
+    progBox('');
+    toast(`AI đã soạn ${drafts.length} câu — hãy kiểm tra trước khi lưu`);
+  }catch(e){ progBox(`<div class="banner">${aiErrorHtml(e)}</div>`); }
+  ASTATE.busy=false;
+  renderDrafts();
+}
+async function runPdf(pdf, from, to, ansPages, withImg){
+  if (ASTATE.busy) return; ASTATE.busy=true;
+  const ctrl=new AbortController(); let stopped=false;
+  const pages=[]; for(let i=from;i<=to;i++) if(!ansPages.includes(i)) pages.push(i);
+  const chunks=[]; for(let i=0;i<pages.length;i+=2) chunks.push(pages.slice(i,i+2));
+  progBox(`<div class="card"><div class="row between"><div><span class="spin"></span> <span id="aiProg">Đang chuẩn bị…</span></div><button class="btn ghost sm" id="aiStop">Dừng</button></div><div class="track mt"><div class="fill good" id="aiBar" style="width:0%;background:var(--pri)"></div></div></div>`);
+  $('#aiStop').onclick=()=>{ stopped=true; ctrl.abort(); };
+  const setProg=(t,p)=>{ const a=$('#aiProg'); if(a) a.textContent=t; const b=$('#aiBar'); if(b&&p!==undefined) b.style.width=Math.round(p*100)+'%'; };
+  let ansText='';
+  try{ for(const p of ansPages) ansText+=`--- Trang ${p} ---\n`+await pageText(pdf,p)+'\n'; }catch(e){}
+  let added=0, failed=[];
+  for (let ci=0; ci<chunks.length && !stopped; ci++){
+    const ch=chunks[ci];
+    const label=`trang ${ch.join('–')}`;
+    setProg(`Lượt ${ci+1}/${chunks.length}: đang đọc ${label}…`, ci/chunks.length);
+    try{
+      let text=''; for(const p of ch) text+=`--- Trang ${p} ---\n`+await pageText(pdf,p)+'\n';
+      const next=ch[ch.length-1]+1; let nextText='';
+      if (next<=pdf.numPages && !ansPages.includes(next)) { try{ nextText=(await pageText(pdf,next)).slice(0,1500); }catch(e){} }
+      const imgs=[]; if (withImg) for(const p of ch) imgs.push(await pageImage(pdf,p));
+      const extra=`7. Đây là ${label} của một file PDF dài. BỎ QUA phần đầu trang nếu đó là đuôi của một câu đã bắt đầu ở trang trước. Nếu câu cuối cùng bị cắt sang trang sau, hãy dùng phần "Trang kế tiếp" bên dưới để hoàn thiện câu đó, nhưng KHÔNG tách thêm các câu bắt đầu ở trang kế tiếp.
+${nextText?`Trang kế tiếp (chỉ để tham khảo phần còn lại của câu cuối):\n"""\n${nextText}\n"""\n`:''}${ansText?`Bảng đáp án của cả đề (đối chiếu theo số thứ tự câu, vẫn phải tự kiểm tra lại):\n"""\n${ansText.slice(0,4000)}\n"""\n`:''}`;
+      const opt={ modelTier:'complex', signal:ctrl.signal, onText:({text:t})=>setProg(`Lượt ${ci+1}/${chunks.length} (${label}): AI đang viết… ${t.length.toLocaleString('vi-VN')} ký tự`) };
+      if (imgs.length) opt.images=imgs;
+      const res=await S.sample(importPrompt(text, imgs.length>0, extra), opt);
+      const drafts=extractJsonArray(res.text).map(o=>{ const q=normDraft(o,null); q.srcNote=label; return q; });
+      S.aiDrafts=(S.aiDrafts||[]).concat(drafts.map(q=>({q,on:true})));
+      added+=drafts.length;
+      renderDrafts();
+    }catch(e){
+      if (stopped || (e&&e.name==='AbortError')) break;
+      if (e && (e.code==='not_granted'||e.code==='rate_limited')){ progBox(`<div class="banner">${aiErrorHtml(e)} Đã lấy được ${added} câu.</div>`); ASTATE.busy=false; renderDrafts(); return; }
+      failed.push(label);
+    }
+  }
+  ASTATE.busy=false;
+  progBox(`<div class="banner" style="background:var(--good-soft);border-color:#bfe3cf;color:var(--good)">${stopped?'Đã dừng. ':'Hoàn tất. '}AI đã tách được <b>${added}</b> câu từ file PDF.${failed.length?` <span style="color:var(--bad)">Chưa xử lý được: ${failed.join(', ')} — có thể chạy lại riêng các trang này.</span>`:''} Hãy duyệt bên dưới rồi lưu.</div>`);
+  renderDrafts();
+}
+function exportDrafts(){
+  const pick=(S.aiDrafts||[]).filter(d=>d.on).map(d=>{ const o=cleanQ(d.q); o.src='ai'; return o; });
+  if (!pick.length){ toast('Chưa chọn câu nào'); return; }
+  const bad=pick.filter(q=>validateQ(q)).length;
+  const data=JSON.stringify(pick);
+  openModal(`<h2>Xuất ${pick.length} câu hỏi</h2>${bad?`<div class="banner">Có ${bad} câu còn thiếu thông tin — trang V2P sẽ báo lỗi khi nhập. Hãy sửa hoặc bỏ chọn.</div>`:''}
+    <p class="small">Bấm <b>Sao chép</b>, mở trang <b>V2P Education → Ngân hàng câu hỏi → Nhập JSON</b> rồi dán vào và bấm Nhập.</p>
+    <textarea id="expTa" style="min-height:220px;font-family:monospace;font-size:12px" readonly>${esc(data)}</textarea>
+    <div class="row end mt"><button class="btn ghost" id="expDone">Đã nhập xong — xóa các câu này khỏi xưởng</button><button class="btn" id="cpExp">Sao chép</button></div>`, true);
+  $('#cpExp').onclick=async()=>{ try{ await navigator.clipboard.writeText(data); toast('Đã sao chép JSON'); }catch(e){ const t=$('#expTa'); t.focus(); t.select(); toast('Nhấn Ctrl+C (hoặc giữ để sao chép) để sao chép'); } };
+  $('#expDone').onclick=()=>{ S.aiDrafts=(S.aiDrafts||[]).filter(d=>!d.on); closeModal(); renderDrafts(); };
+}
+function renderDrafts(){
+  const out=$('#aiOut'); if(!out) return;
+  const D=S.aiDrafts||[]; if(!D.length){ out.innerHTML=''; return; }
+  const on=D.filter(d=>d.on).length;
+  out.innerHTML=`<div class="row between mb"><h2 style="margin:0">Duyệt ${D.length} câu do AI soạn</h2><div class="row"><button class="btn ghost sm" id="dClear">Bỏ tất cả</button><button class="btn" id="dSave">${MODE==='workshop'?`Xuất JSON ${on} câu đã chọn`:`Lưu ${on} câu đã chọn vào ngân hàng`}</button></div></div>
+  <div class="banner">⚠️ AI có thể nhầm đáp án. Thầy/cô vui lòng đọc lời giải, bấm <b>Sửa</b> nếu cần trước khi lưu. Câu bị bỏ chọn sẽ không được lưu.</div>
+  <div id="dMsg" class="small mb"></div>
+  ${D.map((d,i)=>{ const err=validateQ(cleanQ(d.q)); return `<div class="ai-card ${d.on?'':'off'}"><div class="qhead"><label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" data-on="${i}" ${d.on?'checked':''}> <b>Câu ${i+1}</b></label><span class="chip pri">${TYPE_SHORT[d.q.type]||d.q.type}</span><span class="chip">Lớp ${d.q.grade}</span><span class="chip">${esc(topicName(d.q.topic))}</span><span class="chip">${LEVELS[d.q.level]||d.q.level}</span>${d.q.srcNote?`<span class="chip warn">PDF ${esc(d.q.srcNote)}</span>`:''}${err?`<span class="chip bad">${esc(err)}</span>`:''}<button class="btn ghost sm" style="margin-left:auto" data-edd="${i}">Sửa</button></div>${previewHtml(d.q,true)}</div>`; }).join('')}`;
+  typeset(out);
+  $$('[data-on]').forEach(c=>c.onchange=()=>{ D[+c.dataset.on].on=c.checked; renderDrafts(); });
+  $$('[data-edd]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.edd; editorModal(JSON.parse(JSON.stringify(D[i].q)), null, {saveLabel:'Cập nhật bản nháp', onSave:(o)=>{ D[i].q={...o, src:'ai'}; renderDrafts(); }}); });
+  persistDrafts();
+  $('#dClear').onclick=async()=>{ if(D.length && !await ask('Bỏ tất cả câu đang chờ duyệt?','Bỏ tất cả')) return; S.aiDrafts=[]; renderDrafts(); };
+  if (MODE==='workshop'){ $('#dSave').onclick=()=>exportDrafts(); return; }
+  $('#dSave').onclick=async()=>{
+    const pick=D.filter(d=>d.on).map(d=>d.q); if(!pick.length){ toast('Chưa chọn câu nào'); return; }
+    const msg=$('#dMsg'); const bad=pick.map((q,i)=>validateQ(cleanQ(q))).filter(Boolean); if(bad.length){ msg.innerHTML=`<span style="color:var(--bad)">Có ${bad.length} câu thiếu thông tin — hãy sửa hoặc bỏ chọn.</span>`; return; }
+    $('#dSave').disabled=true; let ok=0;
+    for (const q of pick){ try{ await saveQuestion(q); ok++; msg.textContent=`Đã lưu ${ok}/${pick.length}…`; }catch(e){ msg.textContent=`Lỗi ở câu ${ok+1}: ${errMsg(e)}`; $('#dSave').disabled=false; return; } }
+    S.aiDrafts=S.aiDrafts.filter(d=>!d.on); toast(`Đã thêm ${ok} câu vào ngân hàng`); renderDrafts();
+  };
+}
+
+init();
+</script>
+</body>
+</html>
