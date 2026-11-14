@@ -430,7 +430,7 @@ function persistDrafts(){ if (MODE!=='workshop') return; try{ localStorage.setIt
 /* ===================== Hồ sơ học sinh ===================== */
 function profileModal(first){
   const me = S.me || {};
-  openModal(`${first?'<div style="text-align:center"><img src="${LOGO_FULL}" alt="V2P Education" style="width:150px;height:150px"></div>':''}<h2>${first?'Chào mừng bạn đến với V2P Education! 👋':'Thông tin học sinh'}</h2>
+  openModal(`${first?'<div style="text-align:center"><img src="'+LOGO_FULL+'" alt="V2P Education" style="width:150px;height:150px"></div>':''}<h2>${first?'Chào mừng bạn đến với V2P Education! 👋':'Thông tin học sinh'}</h2>
     <p class="muted small">${first?'Nhập họ tên và lớp để thầy/cô theo dõi kết quả ôn tập của bạn.':''}</p>
     <label class="f">Họ và tên</label><input type="text" id="pfName" value="${esc(me.name||'')}" placeholder="VD: Nguyễn Văn An">
     <label class="f">Lớp</label><input type="text" id="pfClass" value="${esc(me.className||'')}" placeholder="VD: 12A1">
