@@ -1088,9 +1088,11 @@ function fileToDataURL(file,max=720){ /* đọc ảnh, thu nhỏ, nén JPEG */ r
 function importModal(){
   const ws=window.V2P_WORKSHOP_URL;
   openModal(`<h2>Nhập câu hỏi từ JSON</h2>${MODE==='github'?`<div class="banner">Để lấy câu hỏi từ <b>file PDF</b> hoặc nhờ <b>AI soạn câu mới</b>: mở ${ws?`<a href="${esc(ws)}" target="_blank" rel="noopener">Xưởng soạn câu hỏi V2P</a>`:'Xưởng soạn câu hỏi V2P trên claude.ai'}, duyệt câu rồi bấm "Xuất JSON" và dán vào ô dưới đây.</div>`:''}<p class="small muted">Dán một mảng JSON. Mỗi câu gồm: type (mcq/tf/short), grade, topic (mã chủ đề), level (NB/TH/VD/VDC), stem, options[4] + answer 0–3 (mcq), statements[4] + answer [true/false ×4] (tf), answer chuỗi (short), solution.</p>
+   <div class="row mb"><label class="small"><b>Chọn file JSON:</b></label><input type="file" id="impFile" accept=".json,application/json,text/plain" style="flex:1"></div>
    <textarea id="impTa" style="min-height:260px;font-family:monospace;font-size:12px" placeholder='[{"type":"mcq","grade":12,"topic":"12-tichphan","level":"NB","stem":"...","options":["..","..","..",".."],"answer":0,"solution":"..."}]'></textarea>
    <details class="mt small"><summary style="cursor:pointer">Danh sách mã chủ đề</summary><div style="max-height:200px;overflow:auto">${[10,11,12].map(g=>allTopics(g).map(t=>`<div><code>${t.key}</code> — ${esc(t.name)}</div>`).join('')).join('')}</div></details>
    <div class="row end mt"><span class="small" id="impMsg"></span><button class="btn ghost" onclick="closeModal()">Hủy</button><button class="btn" id="impGo">Nhập</button></div>`, true);
+  $('#impFile').onchange=async()=>{ const f=$('#impFile').files[0]; if(!f) return; try{ const t=await f.text(); $('#impTa').value=t; let n='?'; try{ const a=JSON.parse(t); n=Array.isArray(a)?a.length:1; }catch(e){} $('#impMsg').textContent=`Đã đọc file ${f.name}: ${n} câu. Bấm Nhập để lưu.`; }catch(e){ $('#impMsg').textContent='Không đọc được file'; } };
   $('#impGo').onclick=async()=>{
     let arr; try{ arr=JSON.parse($('#impTa').value); if(!Array.isArray(arr)) arr=[arr]; }catch(e){ $('#impMsg').textContent='JSON không hợp lệ'; return; }
     await saveMany(arr.map(o=>({...o, src:o.src||'import', id:undefined})), $('#impMsg'), $('#impGo'));
@@ -1506,7 +1508,8 @@ async function runAI(prompt, images, defaults, pageKeys){
     const opt={ modelTier:'complex', signal:ctrl.signal, onText:({text})=>{ const p=$('#aiProg'); if(p) p.textContent=`AI đang viết… ${text.length.toLocaleString('vi-VN')} ký tự`; } };
     if (images && images.length) opt.images=images;
     const res=await S.sample(prompt, opt);
-    const drafts=extractJsonArray(res.text).map(o=>normDraft(o,defaults));
+    const {arr}=parseAiArray(res.text); if(!arr.length) throw {message:'AI không trả về câu hỏi nào (kết quả rỗng hoặc sai định dạng)'};
+    const drafts=arr.filter(o=>o&&o.stem).map(o=>normDraft(o,defaults));
     if (pageKeys && pageKeys.length) for (const q of drafts) await applyFigs(q, pageKeys);
     S.aiDrafts=(S.aiDrafts||[]).concat(drafts.map(q=>({q, on:true})));
     progBox('');
@@ -1515,54 +1518,87 @@ async function runAI(prompt, images, defaults, pageKeys){
   ASTATE.busy=false;
   renderDrafts();
 }
+// Đọc các object JSON hoàn chỉnh từ một mảng có thể bị cắt cụt (khi AI viết quá dài)
+function salvageJsonArray(text){
+  const t=String(text||''); const start=t.indexOf('['); if(start<0) return [];
+  const out=[]; let depth=0, inStr=false, esc=false, objStart=-1;
+  for (let i=start+1;i<t.length;i++){
+    const ch=t[i];
+    if (inStr){ if(esc) esc=false; else if(ch==='\\') esc=true; else if(ch==='"') inStr=false; continue; }
+    if (ch==='"'){ inStr=true; continue; }
+    if (ch==='{'){ if(depth===0) objStart=i; depth++; }
+    else if (ch==='}'){ depth--; if(depth===0&&objStart>=0){ try{ out.push(JSON.parse(t.slice(objStart,i+1))); }catch(e){} objStart=-1; } }
+    else if (ch===']' && depth===0) break;
+  }
+  return out;
+}
+function parseAiArray(text){ try{ return {arr:extractJsonArray(text), partial:false}; }catch(e){ const arr=salvageJsonArray(text); return {arr, partial:true}; } }
+
 async function runPdf(pdf, from, to, ansPages, withImg, sol, imgMax){
   if (ASTATE.busy) return; ASTATE.busy=true;
   const ctrl=new AbortController(); let stopped=false;
   const pages=[]; for(let i=from;i<=to;i++) if(!ansPages.includes(i)) pages.push(i);
-  const chunks=[]; for(let i=0;i<pages.length;i+=2) chunks.push(pages.slice(i,i+2));
-  progBox(`<div class="card"><div class="row between"><div><span class="spin"></span> <span id="aiProg">Đang chuẩn bị…</span></div><button class="btn ghost sm" id="aiStop">Dừng</button></div><div class="track mt"><div class="fill good" id="aiBar" style="width:0%;background:var(--pri)"></div></div></div>`);
+  // Có ảnh: mỗi lượt 1 trang chính + ảnh trang kế tiếp (để lấy phần câu và hình vẽ bị tràn sang trang sau)
+  // Không có ảnh: mỗi lượt 2 trang văn bản
+  const chunks=[]; const step=withImg?1:2; for(let i=0;i<pages.length;i+=step) chunks.push(pages.slice(i,i+step));
+  progBox(`<div class="card"><div class="row between"><div><span class="spin"></span> <span id="aiProg">Đang chuẩn bị…</span></div><button class="btn ghost sm" id="aiStop">Dừng</button></div><div class="track mt"><div class="fill good" id="aiBar" style="width:0%;background:var(--pri)"></div></div><div class="small muted mt" id="aiLog"></div></div>`);
   $('#aiStop').onclick=()=>{ stopped=true; ctrl.abort(); };
   const setProg=(t,p)=>{ const a=$('#aiProg'); if(a) a.textContent=t; const b=$('#aiBar'); if(b&&p!==undefined) b.style.width=Math.round(p*100)+'%'; };
+  const log=(s)=>{ const l=$('#aiLog'); if(l) l.innerHTML+=s+'<br>'; };
   let ansText='';
   try{ for(const p of ansPages) ansText+=`--- Trang ${p} ---\n`+await pageText(pdf,p)+'\n'; }catch(e){}
-  const maxImgs = withImg ? Math.max(1, imgMax||4) : 0;
+  const maxImgs = withImg ? Math.max(2, imgMax||4) : 0;
   let added=0, withFig=0; const failed=[];
   for (let ci=0; ci<chunks.length && !stopped; ci++){
-    const ch=chunks[ci];
-    const label=`trang ${ch.join('–')}`;
+    const ch=chunks[ci]; const main=ch[0], last=ch[ch.length-1];
+    const label = ch.length>1 ? `trang ${ch.join('–')}` : `trang ${main}`;
     setProg(`Lượt ${ci+1}/${chunks.length}: đang đọc ${label}…`, ci/chunks.length);
     try{
       let text=''; for(const p of ch) text+=`--- Trang đề ${p} ---\n`+await pageText(pdf,p)+'\n';
-      const next=ch[ch.length-1]+1; let nextText='';
-      if (next<=pdf.numPages && !ansPages.includes(next)) { try{ nextText=(await pageText(pdf,next)).slice(0,1500); }catch(e){} }
-      // Hướng dẫn giải: ghép theo số câu xuất hiện trong các trang đề
+      const next=last+1; const hasNext = next<=pdf.numPages && !ansPages.includes(next);
+      let nextText=''; if (hasNext) { try{ nextText=(await pageText(pdf,next)).slice(0,1800); }catch(e){} }
       let solText='', solPages=[];
       if (sol && sol.segs.length){
-        const nums=qNumbers(text + '\n' + nextText.slice(0,300));
+        const nums=qNumbers(text + '\n' + nextText.slice(0,600));
         const segs=sol.segs.filter(s=>nums.includes(s.num));
         solText=segs.map(s=>`--- (trang HDG ${s.page}) ---\n${s.text}`).join('\n').slice(0,12000);
-        solPages=[...new Set(segs.map(s=>s.page))].slice(0,3);
+        solPages=[...new Set(segs.map(s=>s.page))].slice(0,2);
       }
       const keys=[], labels=[];
       if (maxImgs){
-        for (const p of ch){ if(keys.length>=maxImgs) break; keys.push(await pageKey(pdf,p,'Trang đề '+p)); labels.push('trang đề '+p); }
+        for (const p of ch){ keys.push(await pageKey(pdf,p,'Trang đề '+p)); labels.push('trang đề '+p+' (trang chính)'); }
+        if (hasNext && keys.length<maxImgs){ keys.push(await pageKey(pdf,next,'Trang đề '+next)); labels.push('trang đề '+next+' (trang kế tiếp, chỉ để lấy phần còn lại và hình vẽ của câu cuối)'); }
         if (sol) for (const p of solPages){ if(keys.length>=maxImgs) break; keys.push(await pageKey(sol.doc,p,'Trang HDG '+p)); labels.push('trang hướng dẫn giải '+p); }
       }
       const imgs = await Promise.all(keys.map(k=>dataUrlToBlob(PAGES[k].url)));
-      const extra=`7. Đây là ${label} của một file PDF dài. BỎ QUA phần đầu trang nếu đó là đuôi của một câu đã bắt đầu ở trang trước. Nếu câu cuối cùng bị cắt sang trang sau, hãy dùng phần "Trang kế tiếp" bên dưới để hoàn thiện câu đó, nhưng KHÔNG tách thêm các câu bắt đầu ở trang kế tiếp.
-${keys.length?`Danh sách ảnh đính kèm theo thứ tự: ${labels.map((l,i)=>`Ảnh ${i+1} = ${l}`).join('; ')}.\n`:''}${nextText?`Trang kế tiếp (chỉ để tham khảo phần còn lại của câu cuối):\n"""\n${nextText}\n"""\n`:''}${ansText?`Bảng đáp án của cả đề (đối chiếu theo số thứ tự câu, vẫn phải tự kiểm tra lại):\n"""\n${ansText.slice(0,4000)}\n"""\n`:''}${solText?`HƯỚNG DẪN GIẢI CHÍNH THỨC cho các câu trong phần này (chú ý: đề 2025 đánh số lại "Câu 1" ở mỗi phần, hãy ghép đúng theo nội dung). Dùng hướng dẫn giải để xác định đáp án và viết lại lời giải chi tiết, dễ hiểu; lấy hình vẽ lời giải từ ảnh trang hướng dẫn giải nếu có:\n"""\n${solText}\n"""\n`:''}`;
+      const extra=`7. CHỈ trích các câu hỏi BẮT ĐẦU trên ${label} (trang chính). BỎ QUA phần đầu trang chính nếu đó là phần cuối của một câu đã bắt đầu ở trang trước. Nếu câu cuối cùng của trang chính còn tiếp sang trang kế tiếp (phần đề, phương án, bảng hoặc HÌNH VẼ nằm ở trang sau) thì phải dùng trang kế tiếp để lấy trọn câu đó, nhưng KHÔNG trích các câu bắt đầu ở trang kế tiếp.
+8. Đề có thể đánh số lại "Câu 1" ở mỗi phần (PHẦN I trắc nghiệm, PHẦN II đúng/sai, PHẦN III trả lời ngắn) — xác định dạng theo phần chứa câu.
+9. Văn bản trích từ PDF bên dưới thường bị LỖI CÔNG THỨC (công thức MathType bị vỡ, mất phân số, căn, mũ). Luôn đọc đề và công thức từ ẢNH; văn bản chỉ để tham khảo chữ tiếng Việt. Bỏ qua chữ/logo in chìm (watermark) trên nền trang.
+10. Lời giải viết ngắn gọn nhưng đủ các bước chính (khoảng 3–8 dòng mỗi câu) để không vượt giới hạn độ dài.
+${keys.length?`Danh sách ảnh đính kèm theo thứ tự: ${labels.map((l,i)=>`Ảnh ${i+1} = ${l}`).join('; ')}. Tọa độ khung hình vẽ ("fig"/"solFig") tính theo đúng ảnh chứa hình đó.\n`:''}${!keys.length&&nextText?`Trang kế tiếp (chỉ để tham khảo phần còn lại của câu cuối):\n"""\n${nextText}\n"""\n`:''}${ansText?`Bảng đáp án của cả đề (đối chiếu theo số thứ tự câu, vẫn phải tự kiểm tra lại):\n"""\n${ansText.slice(0,4000)}\n"""\n`:''}${solText?`HƯỚNG DẪN GIẢI CHÍNH THỨC cho các câu trong phần này (ghép đúng theo nội dung, vì mỗi phần đánh số lại từ Câu 1). Dùng hướng dẫn giải để xác định đáp án và viết lại lời giải dễ hiểu; lấy hình vẽ lời giải từ ảnh trang hướng dẫn giải nếu có:\n"""\n${solText}\n"""\n`:''}`;
       const opt={ modelTier:'complex', signal:ctrl.signal, onText:({text:t})=>setProg(`Lượt ${ci+1}/${chunks.length} (${label}): AI đang viết… ${t.length.toLocaleString('vi-VN')} ký tự`) };
       if (imgs.length) opt.images=imgs;
-      const res=await S.sample(importPrompt(text, imgs.length>0, extra), opt);
-      const drafts=extractJsonArray(res.text).map(o=>{ const q=normDraft(o,null); q.srcNote=label; return q; });
+      let got=[];
+      let res=await S.sample(importPrompt(text, imgs.length>0, extra), opt);
+      let {arr, partial}=parseAiArray(res.text); got=got.concat(arr);
+      // Bị cắt cụt: hỏi tiếp phần còn lại (tối đa 2 lần)
+      for (let k=0; k<2 && (partial || res.truncated) && !stopped; k++){
+        setProg(`Lượt ${ci+1}/${chunks.length} (${label}): đang lấy tiếp các câu còn lại…`);
+        const done=got.map((q,i)=>`${i+1}. ${String(q.stem||'').replace(/\s+/g,' ').slice(0,90)}`).join('\n');
+        res=await S.sample(importPrompt(text, imgs.length>0, extra+`\nĐÃ TRÍCH XONG các câu sau, KHÔNG lặp lại:\n${done||'(chưa có)'}\nHãy trích TIẾP các câu còn lại bắt đầu trên ${label}. Nếu không còn câu nào thì trả về [].`), opt);
+        ({arr, partial}=parseAiArray(res.text)); got=got.concat(arr);
+        if (!arr.length) break;
+      }
+      const drafts=got.filter(o=>o&&o.stem).map(o=>{ const q=normDraft(o,null); q.srcNote=label; return q; });
       if (keys.length) for (const q of drafts){ await applyFigs(q, keys); if(q.img||q.solImg) withFig++; }
       S.aiDrafts=(S.aiDrafts||[]).concat(drafts.map(q=>({q,on:true})));
       added+=drafts.length;
+      log(`✓ ${label}: ${drafts.length} câu${drafts.filter(q=>q.img).length?` (${drafts.filter(q=>q.img).length} câu có hình)`:''}`);
       renderDrafts();
     }catch(e){
       if (stopped || (e&&e.name==='AbortError')) break;
       if (e && (e.code==='not_granted'||e.code==='rate_limited')){ progBox(`<div class="banner">${aiErrorHtml(e)} Đã lấy được ${added} câu.</div>`); ASTATE.busy=false; renderDrafts(); return; }
-      failed.push(label);
+      failed.push(label); log(`✗ ${label}: ${esc((e&&e.message)||'lỗi')}`);
     }
   }
   ASTATE.busy=false;
