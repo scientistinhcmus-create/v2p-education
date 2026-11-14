@@ -71,7 +71,8 @@ Gửi link GitHub Pages. Học sinh đăng nhập bằng Gmail, nhập họ tên
 
 ## Cấu trúc dữ liệu (Firestore)
 - `bank/{id}` — câu hỏi: `type` (mcq/tf/short), `grade`, `topic`, `level` (NB/TH/VD/VDC), `stem`, `options[4]` hoặc `statements[4]`, `answer`, `solution`, `img`.
-- `config/topics` — chủ đề tự thêm; `config/bankver` — phiên bản ngân hàng theo lớp.
+- `bankimg/{id}` — hình vẽ của câu hỏi: `q` (hình đề), `s` (hình lời giải).
+- `config/topics` — chủ đề tự thêm; `config/bankver` — phiên bản ngân hàng theo lớp; `config/blueprints` — các cấu trúc đề.
 - `students/{uid}` — hồ sơ & thống kê; `students/{uid}/attempts/{id}` — từng bài làm.
 - `admins/{uid}` — danh sách giáo viên.
 

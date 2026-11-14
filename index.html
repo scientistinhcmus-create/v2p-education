@@ -317,6 +317,7 @@ const ROUTES = {
   'diem-yeu': { label:'Điểm yếu của tôi', fn:()=>vStats(S.uid, true) },
   'lop-hoc': { label:'Lớp học', fn:()=>vTeacher(), teacher:true },
   'ngan-hang': { label:'Ngân hàng câu hỏi', fn:()=>vBank(), teacher:true },
+  'cau-truc': { label:'Cấu trúc đề', fn:()=>vBlueprints(), teacher:true },
   'ai-cau-hoi': { label:'Cập nhật câu hỏi bằng AI', fn:()=>vAI(), teacher:true }
 };
 function routeOk(k){
@@ -370,6 +371,7 @@ async function init(){
   if (S.uid) {
     try { const d = await withRetry(()=>db.doc('students/'+S.uid).get()); S.me = d.exists ? JSON.parse(JSON.stringify(d.data())) : null; } catch(e){ S.me=null; }
   }
+  await loadBlueprints();
   S.ready = true; clearTimeout(timeout);
   const start = location.hash.slice(1);
   await go(ROUTES[start] ? start : (S.isTeacher ? 'lop-hoc' : 'luyen-tap'), true);
@@ -378,6 +380,7 @@ async function init(){
 
 /* ---- Bản GitHub Pages + Firebase ---- */
 async function loadCommon(){
+  await loadBlueprints();
   try { const cfg = await withRetry(()=>S.db.doc('config/topics').get()); if (cfg.exists) S.customTopics = (cfg.data().list||[]).map(t=>({...t})); } catch(e){}
   if (S.uid) { try { const d = await withRetry(()=>S.db.doc('students/'+S.uid).get()); S.me = d.exists ? JSON.parse(JSON.stringify(d.data())) : null; } catch(e){ S.me=null; } }
 }
@@ -489,6 +492,7 @@ function cleanQ(q){
   else if (q.type==='tf'){ o.statements=(q.statements||[]).slice(0,4).map(s=>String(s??'').trim()); o.answer=(q.answer||[]).slice(0,4).map(v=>v===true||v==='true'||v==='Đ'||v===1); }
   else { o.answer=String(q.answer??'').trim(); }
   if (q.img) o.img=q.img;
+  if (q.solImg) o.solImg=q.solImg;
   if (q.createdAt) o.createdAt=q.createdAt;
   return o;
 }
@@ -512,12 +516,46 @@ async function saveQuestion(q){
   const data = cleanQ(q);
   const err = validateQ(data); if (err) throw {message:err};
   data.k = id; data.updatedAt = Date.now(); if (!data.createdAt) data.createdAt = Date.now();
+  if (MODE==='github'){
+    // Hình vẽ lưu ở tài liệu riêng bankimg/{id} để ngân hàng câu hỏi tải nhanh
+    const imgQ=data.img||'', imgS=data.solImg||'';
+    delete data.img; delete data.solImg;
+    data.hasImg=!!imgQ; data.hasSolImg=!!imgS;
+    if (imgQ||imgS) await withRetry(()=>S.db.doc('bankimg/'+id).set({q:imgQ, s:imgS}));
+    else if (q.id && (q.hasImg||q.hasSolImg)) { try{ await S.db.doc('bankimg/'+id).delete(); }catch(e){} }
+    S.imgCache[id]={q:imgQ, s:imgS};
+  }
   await withRetry(()=>S.db.doc('bank/'+id).set(data));
   const oldG = Object.keys(S.bank).filter(g=>S.bank[g].some(x=>x.id===id)).map(Number);
   await bumpBank([data.grade, ...oldG]);
   for (const g of Object.keys(S.bank)) S.bank[g] = S.bank[g].filter(x=>x.id!==id);
   if (S.bank[data.grade]) S.bank[data.grade].push({...data, id});
   return id;
+}
+
+/* ===================== Hình vẽ ===================== */
+S.imgCache = {};
+function imgHtml(q, kind, id){
+  const inline = kind==='s' ? q.solImg : q.img;
+  if (inline) return `<img class="qimg" src="${esc(inline)}" alt="Hình vẽ">`;
+  const flag = kind==='s' ? q.hasSolImg : q.hasImg;
+  const qid = id || q.id;
+  if (!flag || !qid) return '';
+  const c = S.imgCache[qid];
+  if (c && c[kind]) return `<img class="qimg" src="${esc(c[kind])}" alt="Hình vẽ">`;
+  return `<img class="qimg" data-img="${esc(qid)}" data-kind="${kind}" alt="Đang tải hình…" style="min-height:40px">`;
+}
+async function loadImgs(ids){
+  if (MODE!=='github' || !S.db) return;
+  await Promise.all([...new Set(ids)].filter(id=>id && !(id in S.imgCache)).map(async id=>{
+    try{ const d=await withRetry(()=>S.db.doc('bankimg/'+id).get()); S.imgCache[id]=d.exists?d.data():{}; }catch(e){ S.imgCache[id]={}; }
+  }));
+}
+async function hydrateImgs(el){
+  if (!el) return;
+  const tags=[...el.querySelectorAll('img[data-img]')]; if (!tags.length) return;
+  await loadImgs(tags.map(t=>t.dataset.img));
+  tags.forEach(t=>{ const c=S.imgCache[t.dataset.img]||{}; const src=c[t.dataset.kind]; if (src){ t.src=src; t.removeAttribute('data-img'); t.style.minHeight=''; } else t.remove(); });
 }
 
 /* ===================== Chọn đề ===================== */
@@ -536,6 +574,7 @@ async function vSetup(){
   const counts = st.preset==='tuychon' ? st.counts : p;
   app.innerHTML = `
   <div class="hero"><div style="position:relative;z-index:1"><h1>Luyện tập cùng V2P</h1><p>Chọn chủ đề và dạng câu — mỗi lần bấm <span class="hl">Bắt đầu</span> là một bộ đề mới, chấm điểm và có lời giải chi tiết.</p></div></div>
+  ${bpSetupHtml()}${S.blueprints.length?'<h2 style="margin:18px 0 10px">Hoặc tự chọn chủ đề ôn tập</h2>':''}
   <div class="card">
     <div class="row between"><h2 style="margin:0">1. Khối lớp</h2>
       <div class="seg" id="gradeSeg">${[10,11,12].map(g=>`<button data-g="${g}" class="${st.grade===g?'on':''}">Lớp ${g}</button>`).join('')}</div></div>
@@ -570,6 +609,7 @@ async function vSetup(){
       <div class="row end mt"><button class="btn lg acc" id="startBtn">Bắt đầu làm bài →</button></div>
     </div>
   </div>`;
+  $$('[data-bp]').forEach(b=>b.onclick=()=>{ const bp=S.blueprints.find(x=>x.id===b.dataset.bp); if(bp) startBlueprint(bp); });
   $$('#gradeSeg button').forEach(b=>b.onclick=()=>{ st.grade=+b.dataset.g; st.topics=[]; persistSetup(); vSetup(); });
   $$('#presetSeg button').forEach(b=>b.onclick=()=>{ st.preset=b.dataset.p; persistSetup(); vSetup(); });
   const syncTopics=()=>{ st.topics=$$('#topicList input:checked').map(i=>i.value); $$('#topicList .topic').forEach(l=>l.classList.toggle('on', l.querySelector('input').checked)); persistSetup(); updAvail(); };
@@ -642,7 +682,7 @@ function vQuiz(){
     const q=it.q;
     if (q.type!==lastType){ h+=`<div class="parttitle">${partOf(q.type)}</div>`; lastType=q.type; }
     h+=`<div class="q" id="q${i}"><div class="qhead"><span class="qnum">Câu ${i+1}.</span><span class="chip">${esc(topicName(q.topic))}</span><span class="chip">${LEVELS[q.level]||''}</span></div>
-      <div class="stem">${rich(q.stem)}</div>${q.img?`<img class="qimg" src="${esc(q.img)}" alt="Hình minh họa">`:''}`;
+      <div class="stem">${rich(q.stem)}</div>${imgHtml(q,'q')}`;
     if (q.type==='mcq'){
       h+=`<div class="opts">${it.perm.map((oi,j)=>`<button class="opt" data-i="${i}" data-o="${oi}"><span class="lt">${'ABCD'[j]}</span><span>${rich(q.options[oi])}</span></button>`).join('')}</div>`;
     } else if (q.type==='tf'){
@@ -664,7 +704,7 @@ function vQuiz(){
     <button class="btn" style="width:100%;margin-top:12px" id="submit1">Nộp bài</button>
     <button class="btn ghost sm" style="width:100%;margin-top:8px" id="quitQ">Hủy bài</button>
   </aside></div>`;
-  typeset(app);
+  typeset(app); hydrateImgs(app);
   $$('.opt[data-i]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.i; Q.ans[i]=+b.dataset.o; $$(`.opt[data-i="${i}"]`).forEach(x=>x.classList.toggle('sel', x===b)); updProg(); });
   $$('.tfb').forEach(b=>b.onclick=()=>{ const i=+b.dataset.i, j=+b.dataset.j; Q.ans[i][j]= b.dataset.v==='1'; $$(`.tfb[data-i="${i}"][data-j="${j}"]`).forEach(x=>x.classList.toggle('sel', x===b)); updProg(); });
   $$('input.short').forEach(inp=>inp.oninput=()=>{ Q.ans[+inp.dataset.i]=inp.value; updProg(); });
@@ -704,7 +744,7 @@ function gradeItem(q,a){
   if (q.type==='tf'){ let k=0; for(let j=0;j<4;j++){ if(a&&a[j]!==null&&a[j]!==undefined&&a[j]===q.answer[j]) k++; } return {f:k/4, p:TF_POINTS[k], mx:1, k}; }
   const ok=checkShort(a,q.answer); return {f:ok?1:0, p:ok?0.5:0, mx:0.5};
 }
-function snapQ(q){ const o={id:q.id,type:q.type,topic:q.topic,level:q.level,stem:q.stem,solution:q.solution,answer:q.answer}; if(q.options)o.options=q.options; if(q.statements)o.statements=q.statements; if(q.img)o.hasImg=true; return o; }
+function snapQ(q){ const o={id:q.id,type:q.type,topic:q.topic,level:q.level,stem:q.stem,solution:q.solution,answer:q.answer}; if(q.options)o.options=q.options; if(q.statements)o.statements=q.statements; if(q.img||q.hasImg)o.hasImg=true; if(q.solImg||q.hasSolImg)o.hasSolImg=true; return o; }
 async function submitQuiz(){
   const Q=S.quiz; if (!Q || Q.done) return; Q.done=true; stopTimer();
   let pts=0, mx=0; const parts={mcq:[0,0],tf:[0,0],short:[0,0]};
@@ -760,7 +800,7 @@ function vResult(att, isReview, backFn){
     <div class="tabs" id="rvTabs" style="margin:0"><button data-f="all" class="on">Tất cả (${att.items.length})</button><button data-f="wrong">Chưa đúng (${wrong})</button><button data-f="right">Đúng (${att.items.length-wrong})</button></div>
     <button class="btn ghost sm" id="toggleSol">Mở tất cả lời giải</button></div>
   <div id="rvList">${att.items.map((it,i)=>reviewItem(it,i)).join('')}</div>`;
-  typeset(app);
+  typeset(app); hydrateImgs(app);
   if (backFn) $('#backBtn').onclick=backFn;
   $$('[data-sol]').forEach(b=>b.onclick=()=>{ const s=$('#sol'+b.dataset.sol); s.classList.toggle('hidden'); b.textContent=s.classList.contains('hidden')?'Xem lời giải chi tiết':'Ẩn lời giải'; });
   let allOpen=false;
@@ -783,7 +823,7 @@ function ansText(q,a){
 function reviewItem(it,i){
   const q=it.s || {}; q.type=q.type||it.t;
   const ok=it.f>=1;
-  const img = q.hasImg ? liveImg(it.q) : null;
+  const liveQ = q.hasImg && MODE!=='github' ? liveImg(it.q) : null;
   let body='';
   if (q.type==='mcq'){
     const perm=it.perm||[0,1,2,3];
@@ -800,9 +840,9 @@ function reviewItem(it,i){
   }
   const badge = ok?'<span class="chip good">✓ Đúng</span>':(it.f>0?'<span class="chip warn">Đúng một phần</span>':'<span class="chip bad">✗ Sai</span>');
   return `<div class="q" data-ok="${ok?1:0}"><div class="qhead"><span class="qnum">Câu ${i+1}.</span>${badge}<span class="chip">${esc(topicName(it.tp))}</span><span class="chip">${TYPE_SHORT[q.type]}</span><span class="chip">${LEVELS[it.lv]||''}</span><span class="small muted" style="margin-left:auto">${fmt10(it.p)}/${fmt10(it.mx)} đ</span></div>
-    <div class="stem">${rich(q.stem)}</div>${img?`<img class="qimg" src="${esc(img)}" alt="">`:''}${body}
+    <div class="stem">${rich(q.stem)}</div>${liveQ?`<img class="qimg" src="${esc(liveQ)}" alt="">`:imgHtml(q,'q',it.q)}${body}
     <button class="btn ghost sm mt" data-sol="${i}">Xem lời giải chi tiết</button>
-    <div class="sol hidden" id="sol${i}"><b>Lời giải.</b><br>${rich(q.solution||'(Chưa có lời giải)')}</div></div>`;
+    <div class="sol hidden" id="sol${i}"><b>Lời giải.</b><br>${rich(q.solution||'(Chưa có lời giải)')}${imgHtml(q,'s',it.q)}</div></div>`;
 }
 function barRow(label, a, extra){
   return `<div class="bar" title="${esc(label)}: ${pct(a)} ${extra?'· '+esc(extra):''}"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</div><div class="track"><div class="fill ${accClass(a)}" style="width:${Math.max(2,a*100)}%"></div></div><div class="pct">${pct(a)} <span class="muted small" style="font-weight:400">${extra||''}</span></div></div>`;
@@ -961,7 +1001,7 @@ function renderBank(){
     <span class="muted small">${f.length} câu</span></div>
   <div id="bList">${view.length?view.map(q=>`<div class="q"><div class="qhead"><span class="chip pri">${TYPE_SHORT[q.type]}</span><span class="chip">${esc(topicName(q.topic))}</span><span class="chip">${LEVELS[q.level]||''}</span>${q.src==='ai'?'<span class="chip warn">AI</span>':''}<span style="margin-left:auto" class="row"><button class="btn ghost sm" data-ed="${q.id}">Sửa</button><button class="btn danger sm" data-del="${q.id}">Xóa</button></span></div>${previewHtml(q,true)}</div>`).join(''):'<div class="card empty">Không có câu hỏi phù hợp.</div>'}</div>
   <div class="row end">${pages>1?`<button class="btn ghost sm" id="pPrev" ${BSTATE.page?'':'disabled'}>‹ Trước</button><span class="small">Trang ${BSTATE.page+1}/${pages}</span><button class="btn ghost sm" id="pNext" ${BSTATE.page<pages-1?'':'disabled'}>Sau ›</button>`:''}</div>`;
-  typeset($('#bList'));
+  typeset($('#bList')); hydrateImgs($('#bList'));
   $$('#bGrade button').forEach(b=>b.onclick=async()=>{ BSTATE.grade=+b.dataset.g; BSTATE.topic=''; BSTATE.page=0; box.innerHTML='<div class="empty"><span class="spin"></span></div>'; try{ await loadBank(BSTATE.grade,true);}catch(e){} renderBank(); });
   $$('tr[data-t]').forEach(tr=>tr.onclick=()=>{ BSTATE.topic=tr.dataset.t; BSTATE.page=0; renderBank(); });
   $('#fTopic').onchange=e=>{BSTATE.topic=e.target.value;BSTATE.page=0;renderBank();};
@@ -970,8 +1010,8 @@ function renderBank(){
   $('#fQ').onchange=e=>{BSTATE.q=e.target.value;BSTATE.page=0;renderBank();};
   if($('#pPrev')){ $('#pPrev').onclick=()=>{BSTATE.page--;renderBank();window.scrollTo(0,0);}; $('#pNext').onclick=()=>{BSTATE.page++;renderBank();window.scrollTo(0,0);}; }
   $('#addQ').onclick=()=>editorModal({type:'mcq',grade:BSTATE.grade,topic:BSTATE.topic||topics[0].key,level:'TH',options:['','','',''],answer:0,statements:['','','',''],stem:'',solution:''}, ()=>renderBank());
-  $$('[data-ed]').forEach(b=>b.onclick=()=>{ const q=bank.find(x=>x.id===b.dataset.ed); editorModal(JSON.parse(JSON.stringify(q)), ()=>renderBank()); });
-  $$('[data-del]').forEach(b=>b.onclick=async()=>{ if(!await ask('Xóa câu hỏi này khỏi ngân hàng? (Bài làm cũ của học sinh vẫn giữ nội dung câu)','Xóa')) return; try{ await withRetry(()=>S.db.doc('bank/'+b.dataset.del).delete()); await bumpBank([BSTATE.grade]); S.bank[BSTATE.grade]=bank.filter(x=>x.id!==b.dataset.del); toast('Đã xóa'); renderBank(); }catch(e){ toast(errMsg(e)); } });
+  $$('[data-ed]').forEach(b=>b.onclick=async()=>{ const q=JSON.parse(JSON.stringify(bank.find(x=>x.id===b.dataset.ed))); if (q.hasImg||q.hasSolImg){ await loadImgs([q.id]); const c=S.imgCache[q.id]||{}; if(c.q) q.img=c.q; if(c.s) q.solImg=c.s; } editorModal(q, ()=>renderBank()); });
+  $$('[data-del]').forEach(b=>b.onclick=async()=>{ if(!await ask('Xóa câu hỏi này khỏi ngân hàng? (Bài làm cũ của học sinh vẫn giữ nội dung câu)','Xóa')) return; try{ await withRetry(()=>S.db.doc('bank/'+b.dataset.del).delete()); if(MODE==='github'){ try{ await S.db.doc('bankimg/'+b.dataset.del).delete(); }catch(_){} } await bumpBank([BSTATE.grade]); S.bank[BSTATE.grade]=bank.filter(x=>x.id!==b.dataset.del); toast('Đã xóa'); renderBank(); }catch(e){ toast(errMsg(e)); } });
   $('#impQ').onclick=importModal;
   $('#expQ').onclick=()=>{ const data=JSON.stringify(f.map(q=>{const o={...q}; delete o.k; return o;}),null,1); openModal(`<h3>Xuất ${f.length} câu (theo bộ lọc hiện tại)</h3><textarea style="min-height:300px;font-family:monospace;font-size:12px" id="expTa">${esc(data)}</textarea><div class="row end mt"><button class="btn ghost" id="cpExp">Sao chép</button><button class="btn" onclick="closeModal()">Đóng</button></div>`,true); $('#cpExp').onclick=async()=>{ try{await navigator.clipboard.writeText(data);toast('Đã sao chép');}catch(e){ $('#expTa').select(); } }; };
   $('#addTopic').onclick=topicModal;
@@ -987,11 +1027,11 @@ function topicModal(){
   $$('[data-rm]').forEach(a=>a.onclick=async(e)=>{ e.preventDefault(); if(!await ask('Xóa chủ đề này? Các câu hỏi thuộc chủ đề vẫn còn nhưng sẽ không hiển thị tên chủ đề.','Xóa')) return; try{ await persist(S.customTopics.filter(t=>t.key!==a.dataset.rm)); toast('Đã xóa'); renderBank(); }catch(err){ toast(errMsg(err)); } });
 }
 function previewHtml(q, showAns){
-  let h=`<div class="stem">${rich(q.stem)}</div>${q.img?`<img class="qimg" src="${esc(q.img)}" alt="">`:''}`;
+  let h=`<div class="stem">${rich(q.stem)}</div>${imgHtml(q,'q')}`;
   if (q.type==='mcq') h+=`<div class="opts">${(q.options||[]).map((o,j)=>`<div class="opt ${showAns&&j===+q.answer?'right':''}" style="cursor:default"><span class="lt">${'ABCD'[j]}</span><span>${rich(o)}</span></div>`).join('')}</div>`;
   else if (q.type==='tf') h+=`<table class="tf">${(q.statements||[]).map((s,j)=>`<tr><td><b>${'abcd'[j]})</b></td><td class="st">${rich(s)}</td><td>${showAns?`<span class="chip ${q.answer&&q.answer[j]?'good':'bad'}">${q.answer&&q.answer[j]?'Đúng':'Sai'}</span>`:''}</td></tr>`).join('')}</table>`;
   else if (showAns) h+=`<div class="mt small">Đáp số: <b style="color:var(--good)">${esc(q.answer)}</b></div>`;
-  if (showAns) h+=`<details class="mt"><summary class="small" style="cursor:pointer;color:var(--pri)">Lời giải</summary><div class="sol">${rich(q.solution||'(chưa có)')}</div></details>`;
+  if (showAns) h+=`<details class="mt"><summary class="small" style="cursor:pointer;color:var(--pri)">Lời giải</summary><div class="sol">${rich(q.solution||'(chưa có)')}${imgHtml(q,'s')}</div></details>`;
   return h;
 }
 
@@ -1006,9 +1046,10 @@ function editorModal(q, after, opts={}){
     <label class="f">Chủ đề</label><select id="eTopic"></select>
     <label class="f">Đề bài</label><textarea id="eStem" rows="4">${esc(q.stem||'')}</textarea>
     <div class="hint">Công thức viết bằng LaTeX trong dấu $…$, ví dụ: $\\int_0^1 x^2\\,dx$, $\\frac{a}{b}$, $\\sqrt{3}$.</div>
-    <label class="f">Hình minh họa (không bắt buộc)</label><div class="row"><input type="file" id="eImg" accept="image/*" style="flex:1"><button class="btn ghost sm" id="eImgRm" ${q.img?'':'style="display:none"'}>Bỏ hình</button></div>
+    <label class="f">Hình vẽ của đề (không bắt buộc)</label><div class="row"><input type="file" id="eImg" accept="image/*" style="flex:1"><button class="btn ghost sm" id="eImgRm" ${q.img?'':'style="display:none"'}>Bỏ hình</button>${opts.cropBtn?'<button class="btn ghost sm" id="eCrop">✂️ Cắt từ trang PDF</button>':''}</div>
     <div id="eBody"></div>
     <label class="f">Lời giải chi tiết</label><textarea id="eSol" rows="6">${esc(q.solution||'')}</textarea>
+    <label class="f">Hình vẽ trong lời giải (không bắt buộc)</label><div class="row"><input type="file" id="eSImg" accept="image/*" style="flex:1"><button class="btn ghost sm" id="eSImgRm" ${q.solImg?'':'style="display:none"'}>Bỏ hình</button></div>
    </div>
    <div><label class="f">Xem trước</label><div class="prev" id="ePrev"></div></div>
   </div>
@@ -1033,6 +1074,9 @@ function editorModal(q, after, opts={}){
   ['eTopic','eLv','eStem','eSol'].forEach(id=>$('#'+id).oninput=$('#'+id).onchange=sync);
   $('#eImg').onchange=async()=>{ const f=$('#eImg').files[0]; if(!f) return; try{ q.img=await fileToDataURL(f,720); $('#eImgRm').style.display=''; sync(); }catch(e){ toast('Không đọc được ảnh'); } };
   $('#eImgRm').onclick=()=>{ delete q.img; $('#eImg').value=''; $('#eImgRm').style.display='none'; sync(); };
+  $('#eSImg').onchange=async()=>{ const f=$('#eSImg').files[0]; if(!f) return; try{ q.solImg=await fileToDataURL(f,800); $('#eSImgRm').style.display=''; sync(); }catch(e){ toast('Không đọc được ảnh'); } };
+  $('#eSImgRm').onclick=()=>{ delete q.solImg; $('#eSImg').value=''; $('#eSImgRm').style.display='none'; sync(); };
+  if ($('#eCrop')) $('#eCrop').onclick=()=>{ Object.assign(q, read()); closeModal(); opts.cropBtn(q); };
   $('#eSave').onclick=async()=>{
     const o=read(); const err=validateQ(cleanQ(o)); if(err){ $('#eErr').textContent=err; return; }
     if (opts.onSave){ opts.onSave(o); closeModal(); return; }
@@ -1040,7 +1084,7 @@ function editorModal(q, after, opts={}){
     try{ await saveQuestion(o); closeModal(); toast('Đã lưu câu hỏi'); after&&after(); }catch(e){ $('#eErr').textContent=errMsg(e); $('#eSave').disabled=false; }
   };
 }
-function fileToDataURL(file,max=720){ return new Promise((res,rej)=>{ const img=new Image(); const url=URL.createObjectURL(file); img.onload=()=>{ const sc=Math.min(1,max/img.width); const c=document.createElement('canvas'); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc); const x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',0.82)); }; img.onerror=()=>{URL.revokeObjectURL(url);rej();}; img.src=url; }); }
+function fileToDataURL(file,max=720){ /* đọc ảnh, thu nhỏ, nén JPEG */ return new Promise((res,rej)=>{ const img=new Image(); const url=URL.createObjectURL(file); img.onload=()=>{ const sc=Math.min(1,max/img.width); const c=document.createElement('canvas'); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc); const x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',0.82)); }; img.onerror=()=>{URL.revokeObjectURL(url);rej();}; img.src=url; }); }
 function importModal(){
   const ws=window.V2P_WORKSHOP_URL;
   openModal(`<h2>Nhập câu hỏi từ JSON</h2>${MODE==='github'?`<div class="banner">Để lấy câu hỏi từ <b>file PDF</b> hoặc nhờ <b>AI soạn câu mới</b>: mở ${ws?`<a href="${esc(ws)}" target="_blank" rel="noopener">Xưởng soạn câu hỏi V2P</a>`:'Xưởng soạn câu hỏi V2P trên claude.ai'}, duyệt câu rồi bấm "Xuất JSON" và dán vào ô dưới đây.</div>`:''}<p class="small muted">Dán một mảng JSON. Mỗi câu gồm: type (mcq/tf/short), grade, topic (mã chủ đề), level (NB/TH/VD/VDC), stem, options[4] + answer 0–3 (mcq), statements[4] + answer [true/false ×4] (tf), answer chuỗi (short), solution.</p>
@@ -1061,8 +1105,141 @@ async function saveMany(arr, msgEl, btn){
   return true;
 }
 
+/* ===================== Cấu trúc đề (giáo viên khai báo) ===================== */
+S.blueprints = [];
+const LV_FALLBACK = { NB:['NB','TH','VD','VDC'], TH:['TH','NB','VD','VDC'], VD:['VD','TH','VDC','NB'], VDC:['VDC','VD','TH','NB'], '':[''] };
+async function loadBlueprints(){
+  if (!S.db) return;
+  try { const d=await withRetry(()=>S.db.doc('config/blueprints').get()); S.blueprints = d.exists ? JSON.parse(JSON.stringify(d.data().list||[])) : []; } catch(e){}
+}
+async function saveBlueprints(list){
+  await withRetry(()=>S.db.doc('config/blueprints').set({list, updatedAt:Date.now()}));
+  S.blueprints = list;
+}
+function bpGrades(bp){ const g=new Set(bp.slots.map(s=>topicGrade(s.topic)).filter(Boolean)); if(!g.size||bp.slots.some(s=>!s.topic)) g.add(+bp.grade||12); return [...g]; }
+function slotCandidates(all, s, used){
+  for (const lv of (LV_FALLBACK[s.level||'']||[''])){
+    const c=all.filter(q=>q.type===s.type && !used.has(q.id) && (!s.topic || q.topic===s.topic) && (!lv || q.level===lv));
+    if (c.length) return {c, exact: lv===(s.level||'')};
+  }
+  return {c:[], exact:false};
+}
+async function buildFromBlueprint(bp){
+  const grades=bpGrades(bp);
+  for (const g of grades) await loadBank(g);
+  const all=grades.flatMap(g=>(S.bank[g]||[]).filter(q=>!s_topicFilter(q, bp)));
+  const used=new Set(); const items=[]; let missing=0, relaxed=0;
+  for (const s of bp.slots){
+    const {c, exact}=slotCandidates(all, s, used);
+    if (!c.length){ missing++; continue; }
+    if (!exact) relaxed++;
+    const pick=c.map(q=>({q,k:Math.pow(Math.random(),1/weightOf(q,S.setup.adaptive))})).sort((a,b)=>b.k-a.k)[0].q;
+    used.add(pick.id); items.push(mkItem(pick));
+  }
+  const ord={mcq:0,tf:1,short:2}; items.sort((a,b)=>ord[a.q.type]-ord[b.q.type]);
+  return {items, missing, relaxed};
+}
+function s_topicFilter(q, bp){ return false; } // chỗ để lọc thêm sau này (ví dụ loại câu đã ẩn)
+async function startBlueprint(bp){
+  toast('Đang tạo đề theo cấu trúc…');
+  try{
+    const {items, missing, relaxed}=await buildFromBlueprint(bp);
+    if (!items.length){ toast('Ngân hàng chưa có câu hỏi phù hợp với cấu trúc này'); return; }
+    startQuiz({grade:+bp.grade||12, topics:[...new Set(items.map(x=>x.q.topic))], name:bp.name, minutes:+bp.minutes||0, bp:bp.id}, items);
+    if (missing) setTimeout(()=>toast(`Lưu ý: còn ${missing} vị trí trong cấu trúc chưa có câu hỏi phù hợp nên đề có ${items.length}/${bp.slots.length} câu.`, 5000), 400);
+    else if (relaxed && S.isTeacher) setTimeout(()=>toast(`${relaxed} câu được lấy ở mức độ gần nhất do thiếu câu đúng mức độ.`, 4000), 400);
+  }catch(e){ toast(errMsg(e)); }
+}
+function bpSetupHtml(){
+  if (!S.blueprints.length) return '';
+  return `<div class="card mb" style="border-top:3px solid var(--acc)"><h2>📋 Đề theo cấu trúc chuẩn của thầy/cô</h2><p class="small muted" style="margin-top:-4px">Mỗi lần bấm là một đề mới, đúng số câu – dạng – chủ đề – mức độ như đề thi thật.</p>
+    <div class="grid g3">${S.blueprints.map(bp=>{ const c={mcq:0,tf:0,short:0}; bp.slots.forEach(s=>c[s.type]++); return `<div class="card" style="box-shadow:none;padding:14px"><b>${esc(bp.name)}</b><div class="small muted">${bp.slots.length} câu · TN ${c.mcq} · Đ/S ${c.tf} · TLN ${c.short}${bp.minutes?` · ${bp.minutes} phút`:''}</div>${bp.note?`<div class="small mt">${esc(bp.note)}</div>`:''}<button class="btn acc mt" data-bp="${esc(bp.id)}" style="width:100%">Làm đề này →</button></div>`; }).join('')}</div></div>`;
+}
+
+/* ---- Trang giáo viên: quản lý cấu trúc đề ---- */
+async function vBlueprints(){
+  const app=$('#app');
+  app.innerHTML=`<h1>Cấu trúc đề</h1><p class="sub">Khai báo đề chuẩn: thứ tự câu, dạng, chủ đề, mức độ. Học sinh làm đề theo cấu trúc sẽ nhận đề mới mỗi lần, cùng độ khó như đề thật.</p><div id="bpBox"><div class="empty"><span class="spin"></span></div></div>`;
+  await loadBlueprints();
+  try { await Promise.all([10,11,12].map(g=>loadBank(g))); } catch(e){}
+  renderBpList();
+}
+function bpReadiness(bp){
+  const grades=[10,11,12]; const all=grades.flatMap(g=>S.bank[g]||[]);
+  let ok=0, low=0, none=0; const used=new Set();
+  bp.slots.forEach(s=>{ const exact=all.filter(q=>q.type===s.type && (!s.topic||q.topic===s.topic) && (!s.level||q.level===s.level)).length; if(exact>=3) ok++; else if(exact>=1) low++; else none++; });
+  return {ok, low, none};
+}
+function renderBpList(){
+  const box=$('#bpBox'); if(!box) return;
+  const list=S.blueprints;
+  box.innerHTML=`<div class="row mb"><button class="btn" id="bpNew">+ Cấu trúc mới (khung đề 2025)</button><button class="btn ghost" id="bpBlank">+ Cấu trúc trống</button><button class="btn ghost" id="bpImp">Nhập JSON cấu trúc</button>${window.V2P_WORKSHOP_URL?`<a class="btn ghost" href="${esc(window.V2P_WORKSHOP_URL)}" target="_blank" rel="noopener" style="text-decoration:none">Phân tích đề mẫu bằng AI ↗</a>`:''}</div>
+  ${list.length?list.map((bp,i)=>{ const r=bpReadiness(bp); const c={mcq:0,tf:0,short:0}; bp.slots.forEach(s=>c[s.type]++);
+    return `<div class="card mb"><div class="row between"><div><h2 style="margin:0">${esc(bp.name)}</h2><div class="small muted">Lớp ${bp.grade||12} · ${bp.slots.length} câu (TN ${c.mcq} · Đ/S ${c.tf} · TLN ${c.short}) · ${bp.minutes||0} phút</div></div>
+      <div class="row"><button class="btn ghost sm" data-try="${i}">Làm thử</button><button class="btn ghost sm" data-edit="${i}">Sửa</button><button class="btn ghost sm" data-dup="${i}">Nhân bản</button><button class="btn ghost sm" data-exp="${i}">Xuất JSON</button><button class="btn danger sm" data-rm="${i}">Xóa</button></div></div>
+      <div class="row mt small"><span class="chip good">${r.ok} vị trí đủ câu (≥3)</span>${r.low?`<span class="chip warn">${r.low} vị trí ít câu (1–2)</span>`:''}${r.none?`<span class="chip bad">${r.none} vị trí chưa có câu đúng mức độ</span>`:''}</div>
+      ${r.low||r.none?'<div class="hint">Vị trí ít câu sẽ làm đề lặp lại nhiều; vị trí chưa có câu đúng mức độ sẽ lấy câu ở mức độ gần nhất. Bổ sung câu hỏi bằng Xưởng AI để đề đa dạng hơn.</div>':''}</div>`; }).join(''):'<div class="card empty">Chưa có cấu trúc đề nào. Bấm "Cấu trúc mới" để tạo khung đề 2025 (12 TN + 4 Đ/S + 6 TLN) rồi chọn chủ đề – mức độ cho từng câu, hoặc dùng Xưởng AI để phân tích đề mẫu của thầy/cô.</div>'}`;
+  const persist=async(l,msg)=>{ try{ await saveBlueprints(l); toast(msg||'Đã lưu'); renderBpList(); }catch(e){ toast(errMsg(e)); } };
+  $('#bpNew').onclick=()=>bpEditor(newBp2025(), l=>persist(l));
+  $('#bpBlank').onclick=()=>bpEditor({id:newId('bp'), name:'Cấu trúc mới', grade:12, minutes:45, slots:[]}, l=>persist(l));
+  $('#bpImp').onclick=()=>{ openModal(`<h2>Nhập JSON cấu trúc đề</h2><p class="small muted">Dán JSON được xuất từ Xưởng soạn câu hỏi (tab "Phân tích đề mẫu → cấu trúc đề").</p><textarea id="bpTa" style="min-height:200px;font-family:monospace;font-size:12px"></textarea><div class="row end mt"><span class="small" id="bpMsg" style="color:var(--bad)"></span><button class="btn ghost" onclick="closeModal()">Hủy</button><button class="btn" id="bpGo">Nhập</button></div>`, true);
+    $('#bpGo').onclick=()=>{ try{ const o=JSON.parse($('#bpTa').value); const bp=normBp(o); if(!bp.slots.length) throw new Error('Không có câu nào'); closeModal(); bpEditor(bp, l=>persist(l,'Đã lưu cấu trúc đề')); }catch(e){ $('#bpMsg').textContent='JSON không hợp lệ: '+(e.message||''); } }; };
+  $$('[data-edit]').forEach(b=>b.onclick=()=>bpEditor(JSON.parse(JSON.stringify(list[+b.dataset.edit])), l=>persist(l)));
+  $$('[data-dup]').forEach(b=>b.onclick=()=>{ const c=JSON.parse(JSON.stringify(list[+b.dataset.dup])); c.id=newId('bp'); c.name+=' (bản sao)'; persist([...list,c],'Đã nhân bản'); });
+  $$('[data-rm]').forEach(b=>b.onclick=async()=>{ if(!await ask(`Xóa cấu trúc "${esc(list[+b.dataset.rm].name)}"? Học sinh sẽ không thấy đề này nữa.`,'Xóa')) return; persist(list.filter((_,i)=>i!==+b.dataset.rm),'Đã xóa'); });
+  $$('[data-try]').forEach(b=>b.onclick=()=>startBlueprint(list[+b.dataset.try]));
+  $$('[data-exp]').forEach(b=>b.onclick=async()=>{ const data=JSON.stringify(list[+b.dataset.exp]); try{ await navigator.clipboard.writeText(data); toast('Đã sao chép JSON cấu trúc'); }catch(e){ openModal(`<textarea style="min-height:200px;font-family:monospace;font-size:12px">${esc(data)}</textarea><div class="row end mt"><button class="btn" onclick="closeModal()">Đóng</button></div>`); } });
+}
+function normBp(o){
+  return { id:o.id||newId('bp'), name:String(o.name||'Cấu trúc đề'), grade:+o.grade||12, minutes:+o.minutes||0, note:String(o.note||''),
+    slots:(o.slots||[]).filter(s=>s&&TYPES[s.type]).map(s=>({type:s.type, topic:s.topic&&topicGrade(s.topic)?s.topic:'', level:LEVELS[s.level]?s.level:'', no:String(s.no||''), note:String(s.note||'')})) };
+}
+function newBp2025(){
+  const slots=[]; for(let i=1;i<=12;i++) slots.push({type:'mcq',topic:'',level:i<=8?'NB':'TH',no:'I.'+i}); for(let i=1;i<=4;i++) slots.push({type:'tf',topic:'',level:i<=2?'TH':'VD',no:'II.'+i}); for(let i=1;i<=6;i++) slots.push({type:'short',topic:'',level:i<=3?'VD':'VDC',no:'III.'+i});
+  return {id:newId('bp'), name:'Đề chuẩn cấu trúc TN THPT 2025', grade:12, minutes:90, note:'', slots};
+}
+function bpEditor(bp, onSave){
+  const topicOpts=(sel)=>`<option value="">— Bất kỳ —</option>`+[12,11,10].map(g=>`<optgroup label="Lớp ${g}">${allTopics(g).map(t=>`<option value="${t.key}" ${t.key===sel?'selected':''}>${esc(t.name)}</option>`).join('')}</optgroup>`).join('');
+  const all=[10,11,12].flatMap(g=>S.bank[g]||[]);
+  const cnt=s=>all.filter(q=>q.type===s.type && (!s.topic||q.topic===s.topic) && (!s.level||q.level===s.level)).length;
+  const render=()=>{
+    const b=openModal(`<div class="row between"><h2 style="margin:0">Soạn cấu trúc đề</h2><button class="btn ghost sm" id="bxClose">✕</button></div>
+      <div class="grid g4 mt"><div style="grid-column:span 2"><label class="f">Tên đề</label><input type="text" id="bxName" value="${esc(bp.name)}"></div>
+        <div><label class="f">Lớp</label><select id="bxGrade">${[12,11,10].map(g=>`<option ${+bp.grade===g?'selected':''}>${g}</option>`).join('')}</select></div>
+        <div><label class="f">Thời gian (phút)</label><input type="number" id="bxMin" value="${+bp.minutes||0}" min="0"></div></div>
+      <label class="f">Ghi chú cho học sinh (không bắt buộc)</label><input type="text" id="bxNote" value="${esc(bp.note||'')}" placeholder="VD: Bám sát đề minh họa 2025, mức độ khá">
+      <div class="row mt between"><div class="small muted">${bp.slots.length} câu · Số câu có sẵn trong ngân hàng cho từng vị trí ở cột cuối</div>
+        <div class="row"><span class="small">Áp dụng cho các dòng đã chọn:</span><select id="bxBulkT" style="width:auto;max-width:220px"><option value="__" selected>— chủ đề —</option>${topicOpts('__')}</select><select id="bxBulkL" style="width:auto"><option value="__">— mức độ —</option><option value="">Bất kỳ</option>${Object.entries(LEVELS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select><button class="btn ghost sm" id="bxBulk">Áp dụng</button></div></div>
+      <div style="max-height:52vh;overflow:auto;margin-top:8px"><table class="tbl" id="bxTbl"><tr><th><input type="checkbox" id="bxAll"></th><th>#</th><th>Câu</th><th>Dạng</th><th>Chủ đề</th><th>Mức độ</th><th class="num">Có sẵn</th><th></th></tr>
+      ${bp.slots.map((s,i)=>{ const n=cnt(s); return `<tr data-i="${i}"><td><input type="checkbox" class="bxChk"></td><td>${i+1}</td><td><input type="text" class="bxNo" value="${esc(s.no||'')}" style="width:62px"></td>
+        <td><select class="bxType" style="width:auto">${Object.keys(TYPES).map(k=>`<option value="${k}" ${s.type===k?'selected':''}>${TYPE_SHORT[k]}</option>`).join('')}</select></td>
+        <td><select class="bxTopic" style="max-width:260px">${topicOpts(s.topic)}</select>${s.note?`<div class="hint">${esc(s.note)}</div>`:''}</td>
+        <td><select class="bxLv" style="width:auto"><option value="">Bất kỳ</option>${Object.entries(LEVELS).map(([k,v])=>`<option value="${k}" ${s.level===k?'selected':''}>${v}</option>`).join('')}</select></td>
+        <td class="num"><span class="chip ${n>=3?'good':n?'warn':'bad'}">${n}</span></td>
+        <td style="white-space:nowrap"><button class="btn ghost sm" data-up="${i}" title="Lên">↑</button><button class="btn ghost sm" data-down="${i}" title="Xuống">↓</button><button class="btn ghost sm" data-cp="${i}" title="Nhân đôi">⧉</button><button class="btn danger sm" data-del="${i}" title="Xóa">✕</button></td></tr>`; }).join('')}</table></div>
+      <div class="row mt"><button class="btn ghost sm" data-add="mcq">+ Câu trắc nghiệm</button><button class="btn ghost sm" data-add="tf">+ Câu đúng/sai</button><button class="btn ghost sm" data-add="short">+ Câu trả lời ngắn</button></div>
+      <div class="row end mt"><button class="btn ghost" id="bxCancel">Hủy</button><button class="btn" id="bxSave">Lưu cấu trúc</button></div>`, true);
+    const readRows=()=>{ bp.name=$('#bxName').value.trim()||'Cấu trúc đề'; bp.grade=+$('#bxGrade').value; bp.minutes=+$('#bxMin').value||0; bp.note=$('#bxNote').value.trim();
+      $$('#bxTbl tr[data-i]').forEach(tr=>{ const s=bp.slots[+tr.dataset.i]; s.no=tr.querySelector('.bxNo').value; s.type=tr.querySelector('.bxType').value; s.topic=tr.querySelector('.bxTopic').value; s.level=tr.querySelector('.bxLv').value; }); };
+    const rerender=()=>{ readRows(); render(); };
+    $$('#bxTbl select').forEach(x=>x.onchange=rerender);
+    $('#bxAll').onchange=e=>$$('.bxChk').forEach(c=>c.checked=e.target.checked);
+    $('#bxBulk').onclick=()=>{ readRows(); const t=$('#bxBulkT').value, l=$('#bxBulkL').value; $$('#bxTbl tr[data-i]').forEach(tr=>{ if(!tr.querySelector('.bxChk').checked) return; const s=bp.slots[+tr.dataset.i]; if(t!=='__') s.topic=t; if(l!=='__') s.level=l; }); render(); };
+    $$('[data-up]').forEach(x=>x.onclick=()=>{ readRows(); const i=+x.dataset.up; if(i>0) [bp.slots[i-1],bp.slots[i]]=[bp.slots[i],bp.slots[i-1]]; render(); });
+    $$('[data-down]').forEach(x=>x.onclick=()=>{ readRows(); const i=+x.dataset.down; if(i<bp.slots.length-1) [bp.slots[i+1],bp.slots[i]]=[bp.slots[i],bp.slots[i+1]]; render(); });
+    $$('[data-cp]').forEach(x=>x.onclick=()=>{ readRows(); const i=+x.dataset.cp; bp.slots.splice(i+1,0,{...bp.slots[i]}); render(); });
+    $$('#bxTbl [data-del]').forEach(x=>x.onclick=()=>{ readRows(); bp.slots.splice(+x.dataset.del,1); render(); });
+    $$('[data-add]').forEach(x=>x.onclick=()=>{ readRows(); bp.slots.push({type:x.dataset.add, topic:'', level:'', no:''}); render(); });
+    $('#bxClose').onclick=$('#bxCancel').onclick=()=>closeModal();
+    $('#bxSave').onclick=()=>{ readRows(); if(!bp.slots.length){ toast('Cấu trúc chưa có câu nào'); return; } const list=S.blueprints.filter(x=>x.id!==bp.id); const idx=S.blueprints.findIndex(x=>x.id===bp.id); if(idx>=0) list.splice(idx,0,bp); else list.push(bp); closeModal(); onSave(list); };
+  };
+  render();
+}
+
 /* ===================== AI: sinh & nhập câu hỏi ===================== */
-let ASTATE={tab:'gen', grade:12, topic:'12-khaosat', type:'mcq', level:'TH', count:5, note:'', raw:'', busy:false};
+let ASTATE={tab:'gen', grade:12, topic:'12-khaosat', type:'mcq', level:'TH', count:5, note:'', raw:'', busy:false, bp:null, bpRaw:''};
+const PAGES = {};          // ảnh các trang PDF/ảnh chụp trong phiên này: key -> {url, label}
+let PAGE_SEQ = 0;
 function topicListText(){ return [10,11,12].map(g=>allTopics(g).map(t=>`${t.key}: ${t.name} (lớp ${g})`).join('\n')).join('\n'); }
 const AI_SCHEMA = `Mỗi câu là một object JSON có các trường:
 - "type": "mcq" (trắc nghiệm 4 phương án) | "tf" (đúng/sai 4 ý) | "short" (trả lời ngắn)
@@ -1075,6 +1252,10 @@ const AI_SCHEMA = `Mỗi câu là một object JSON có các trường:
 - "answer": với mcq là số 0-3 (vị trí phương án đúng); với tf là mảng 4 giá trị true/false; với short là chuỗi đáp số tối đa 4 ký tự, dùng dấu phẩy thập phân, ví dụ "1,5" hoặc "-12" (đề phải yêu cầu làm tròn nếu kết quả không đẹp)
 - "solution": lời giải chi tiết từng bước, giải thích vì sao từng ý đúng/sai với dạng tf.
 Viết mọi công thức toán bằng LaTeX đặt trong $...$. Vì là JSON nên mỗi dấu \\ trong LaTeX phải viết thành \\\\ (ví dụ "\\\\frac{1}{2}"). Dùng \\n để xuống dòng.`;
+const FIG_SCHEMA = `
+- "fig": nếu ĐỀ BÀI có hình vẽ (hình học, đồ thị, bảng biến thiên, sơ đồ, hình minh họa thực tế…) nhìn thấy trong các ảnh đính kèm thì ghi {"img": số thứ tự ảnh chứa hình (bắt đầu từ 1), "box": [x1, y1, x2, y2]} — khung chữ nhật bao TRỌN hình vẽ, tọa độ theo thang 0–1000 của chiều rộng (x) và chiều cao (y) của ảnh, gốc ở góc trên bên trái. Chỉ khoanh phần hình vẽ, không lấy phần chữ của đề. Không có hình thì để null.
+- "solFig": tương tự "fig" nhưng cho hình vẽ minh họa trong LỜI GIẢI (lấy từ ảnh trang hướng dẫn giải hoặc phần lời giải trong ảnh). Không có thì null.
+Khi đề có hình, phần "stem" vẫn phải ghi đủ dữ kiện bằng chữ như trong đề (không cần mô tả lại hình).`;
 function extractJsonArray(text){
   let t=String(text||'').trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
   const a=t.indexOf('['), b=t.lastIndexOf(']');
@@ -1083,36 +1264,53 @@ function extractJsonArray(text){
   if (!Array.isArray(arr)) throw {message:'Kết quả không phải danh sách câu hỏi'};
   return arr;
 }
+function extractJsonObject(text){
+  let t=String(text||'').trim().replace(/^```(?:json)?/i,'').replace(/```$/,'').trim();
+  const a=t.indexOf('{'), b=t.lastIndexOf('}');
+  if (a<0||b<a) throw {message:'AI không trả về đúng định dạng JSON'};
+  return JSON.parse(t.slice(a,b+1));
+}
+async function aiImgLimit(){ try{ const l=S.sample&&S.sample.limits?await S.sample.limits():null; if(!l||!l.images) return 0; return typeof l.images==='number'?l.images:(typeof l.maxImages==='number'?l.maxImages:6); }catch(e){ return 0; } }
+
 async function vAI(){
   const app=$('#app');
   if (!S.sample) { try{ S.sample=await claude.use('sample'); }catch(e){ S.sample=null; } }
-  let canImg=false; try{ canImg=!!(S.sample&&S.sample.limits&&(await S.sample.limits()).images); }catch(e){}
+  const imgMax = await aiImgLimit(); const canImg = imgMax>0;
   const A=ASTATE;
-  app.innerHTML=`<h1>${MODE==='workshop'?'Xưởng soạn câu hỏi V2P':'Cập nhật câu hỏi bằng AI'}</h1><p class="sub">${MODE==='workshop'?'AI soạn câu mới theo chủ đề hoặc tách – phân loại – giải đề từ file PDF/ảnh. Duyệt xong bấm <b>Xuất JSON</b> rồi dán vào trang V2P Education (Ngân hàng câu hỏi → Nhập JSON). Các câu đang duyệt được giữ lại trên máy này kể cả khi tải lại trang.':'AI soạn câu mới theo chủ đề, hoặc tự tách – phân loại – giải đề thầy/cô dán vào. Câu hỏi chỉ vào ngân hàng sau khi thầy/cô duyệt.'}</p>
+  app.innerHTML=`<h1>${MODE==='workshop'?'Xưởng soạn câu hỏi V2P':'Cập nhật câu hỏi bằng AI'}</h1><p class="sub">${MODE==='workshop'?'AI soạn câu mới theo chủ đề, hoặc tách – phân loại – giải đề từ file PDF/ảnh (kèm hình vẽ và file hướng dẫn giải). Duyệt xong bấm <b>Xuất JSON</b> rồi dán vào trang V2P Education (Ngân hàng câu hỏi → Nhập JSON).':'AI soạn câu mới theo chủ đề, hoặc tự tách – phân loại – giải đề thầy/cô đưa vào. Câu hỏi chỉ vào ngân hàng sau khi thầy/cô duyệt.'}</p>
   ${S.sample?'':'<div class="banner">Tính năng AI chưa sẵn sàng trong phiên xem này (cần mở trang trên claude.ai và cho phép trang dùng Claude).</div>'}
-  <div class="tabs" id="aiTabs"><button data-t="gen" class="${A.tab==='gen'?'on':''}">Soạn câu mới theo chủ đề</button><button data-t="imp" class="${A.tab==='imp'?'on':''}">Nhập đề có sẵn & phân loại tự động</button></div>
+  <div class="tabs" id="aiTabs"><button data-t="gen" class="${A.tab==='gen'?'on':''}">Soạn câu mới theo chủ đề</button><button data-t="imp" class="${A.tab==='imp'?'on':''}">Nhập đề có sẵn (PDF, ảnh) + hình vẽ</button><button data-t="bp" class="${A.tab==='bp'?'on':''}">Phân tích đề mẫu → cấu trúc đề</button></div>
   <div class="card" id="aiForm"></div>
   <div class="mt2" id="aiProgBox"></div>
   <div class="mt" id="aiOut"></div>`;
-  $$('#aiTabs button').forEach(b=>b.onclick=()=>{ A.tab=b.dataset.t; vAI(); });
+  $$('#aiTabs button').forEach(b=>b.onclick=()=>{ if(ASTATE.busy){ toast('AI đang chạy, hãy đợi hoặc bấm Dừng'); return; } A.tab=b.dataset.t; vAI(); });
   const form=$('#aiForm');
-  if (A.tab==='gen'){
-    form.innerHTML=`<div class="grid g4">
-      <div><label class="f">Lớp</label><select id="aG">${[10,11,12].map(g=>`<option ${A.grade===g?'selected':''}>${g}</option>`).join('')}</select></div>
-      <div style="grid-column:span 3"><label class="f">Chủ đề</label><select id="aT"></select></div>
-      <div><label class="f">Dạng</label><select id="aY">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}" ${A.type===k?'selected':''}>${v}</option>`).join('')}</select></div>
-      <div><label class="f">Mức độ</label><select id="aL">${Object.entries(LEVELS).map(([k,v])=>`<option value="${k}" ${A.level===k?'selected':''}>${v}</option>`).join('')}</select></div>
-      <div><label class="f">Số câu</label><select id="aN">${[3,5,8,10].map(n=>`<option ${A.count===n?'selected':''}>${n}</option>`).join('')}</select></div>
-      <div></div></div>
-      <label class="f">Yêu cầu thêm (không bắt buộc)</label><textarea id="aNote" rows="2" placeholder="VD: tập trung bài toán thực tế; bám sát đề minh họa 2025; có câu đọc đồ thị/bảng biến thiên mô tả bằng lời…">${esc(A.note)}</textarea>
-      <div class="row end mt"><button class="btn" id="aGo" ${S.sample?'':'disabled'}>Soạn câu hỏi</button></div>`;
-    const fillT=()=>{ $('#aT').innerHTML=allTopics(A.grade).map(t=>`<option value="${t.key}" ${A.topic===t.key?'selected':''}>${esc(t.name)}</option>`).join(''); A.topic=$('#aT').value; };
-    fillT();
-    $('#aG').onchange=()=>{ A.grade=+$('#aG').value; fillT(); };
-    $('#aT').onchange=()=>A.topic=$('#aT').value; $('#aY').onchange=()=>A.type=$('#aY').value; $('#aL').onchange=()=>A.level=$('#aL').value; $('#aN').onchange=()=>A.count=+$('#aN').value; $('#aNote').oninput=()=>A.note=$('#aNote').value;
-    $('#aGo').onclick=async()=>{
-      let existing=[]; try{ existing=(await loadBank(A.grade)).filter(q=>q.topic===A.topic&&q.type===A.type).slice(-12).map(q=>'- '+q.stem.slice(0,140).replace(/\n/g,' ')); }catch(e){}
-      const prompt=`Bạn là giáo viên Toán THPT giàu kinh nghiệm ở Việt Nam, ra đề theo cấu trúc đề thi tốt nghiệp THPT từ năm 2025 (chương trình GDPT 2018).
+  if (A.tab==='gen') genForm(form);
+  else if (A.tab==='imp') impForm(form, canImg, imgMax);
+  else bpForm(form, canImg, imgMax);
+  if (A.tab==='bp') renderBpResult(); else renderDrafts();
+}
+
+/* ---------- Tab 1: soạn câu mới ---------- */
+function genForm(form){
+  const A=ASTATE;
+  form.innerHTML=`<div class="grid g4">
+    <div><label class="f">Lớp</label><select id="aG">${[10,11,12].map(g=>`<option ${A.grade===g?'selected':''}>${g}</option>`).join('')}</select></div>
+    <div style="grid-column:span 3"><label class="f">Chủ đề</label><select id="aT"></select></div>
+    <div><label class="f">Dạng</label><select id="aY">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}" ${A.type===k?'selected':''}>${v}</option>`).join('')}</select></div>
+    <div><label class="f">Mức độ</label><select id="aL">${Object.entries(LEVELS).map(([k,v])=>`<option value="${k}" ${A.level===k?'selected':''}>${v}</option>`).join('')}</select></div>
+    <div><label class="f">Số câu</label><select id="aN">${[3,5,8,10].map(n=>`<option ${A.count===n?'selected':''}>${n}</option>`).join('')}</select></div>
+    <div></div></div>
+    <label class="f">Yêu cầu thêm (không bắt buộc)</label><textarea id="aNote" rows="2" placeholder="VD: tập trung bài toán thực tế; bám sát đề minh họa 2025…">${esc(A.note)}</textarea>
+    <div class="hint">Câu AI tự soạn không có hình vẽ. Câu cần hình: thầy/cô dùng tab "Nhập đề có sẵn", hoặc bấm Sửa để tải/cắt hình.</div>
+    <div class="row end mt"><button class="btn" id="aGo" ${S.sample?'':'disabled'}>Soạn câu hỏi</button></div>`;
+  const fillT=()=>{ $('#aT').innerHTML=allTopics(A.grade).map(t=>`<option value="${t.key}" ${A.topic===t.key?'selected':''}>${esc(t.name)}</option>`).join(''); A.topic=$('#aT').value; };
+  fillT();
+  $('#aG').onchange=()=>{ A.grade=+$('#aG').value; fillT(); };
+  $('#aT').onchange=()=>A.topic=$('#aT').value; $('#aY').onchange=()=>A.type=$('#aY').value; $('#aL').onchange=()=>A.level=$('#aL').value; $('#aN').onchange=()=>A.count=+$('#aN').value; $('#aNote').oninput=()=>A.note=$('#aNote').value;
+  $('#aGo').onclick=async()=>{
+    let existing=[]; try{ existing=(await loadBank(A.grade)).filter(q=>q.topic===A.topic&&q.type===A.type).slice(-12).map(q=>'- '+q.stem.slice(0,140).replace(/\n/g,' ')); }catch(e){}
+    const prompt=`Bạn là giáo viên Toán THPT giàu kinh nghiệm ở Việt Nam, ra đề theo cấu trúc đề thi tốt nghiệp THPT từ năm 2025 (chương trình GDPT 2018).
 Hãy soạn ${A.count} câu hỏi MỚI, dạng "${TYPES[A.type]}" (type="${A.type}"), lớp ${A.grade}, chủ đề "${topicName(A.topic)}" (topic="${A.topic}"), mức độ ${LEVELS[A.level]} (level="${A.level}").
 ${A.note?'Yêu cầu thêm của giáo viên: '+A.note+'\n':''}Yêu cầu chất lượng:
 - Đúng kiến thức, đúng phạm vi chương trình. Tự giải lại từng câu và kiểm tra đáp án thật cẩn thận trước khi trả lời.
@@ -1124,66 +1322,98 @@ ${existing.length?'Không trùng với các câu đã có:\n'+existing.join('\n'
 ${AI_SCHEMA}
 
 Chỉ trả về MỘT mảng JSON gồm ${A.count} object, không thêm bất kỳ chữ nào khác.`;
-      await runAI(prompt, [], {grade:A.grade, topic:A.topic, type:A.type, level:A.level});
-    };
-  } else {
-    form.innerHTML=`<div class="grid g2">
-      <div><h3>📄 Tải file PDF đề thi</h3>
-        <input type="file" id="aPdf" accept="application/pdf,.pdf">
-        <div id="pdfInfo" class="mt small muted">Hỗ trợ đề thi thử, đề kiểm tra, file chuyên đề… AI xử lý lần lượt từng 2 trang để không bỏ sót câu.</div></div>
-      <div><h3>✍️ Hoặc dán nội dung / ảnh chụp</h3>
-        <textarea id="aRaw" rows="6" placeholder="Dán đề thi thử, đề kiểm tra, hoặc từng câu hỏi vào đây…">${esc(A.raw)}</textarea>
-        ${canImg?`<label class="f">Ảnh chụp đề (tối đa 4 ảnh)</label><input type="file" id="aImgs" accept="image/*" multiple>`:''}</div>
-    </div>
-    <div class="hint mt">AI sẽ tách từng câu, xác định dạng (trắc nghiệm / đúng sai / trả lời ngắn), phân loại lớp – chủ đề – mức độ, xác định đáp án và viết lời giải chi tiết. Câu tự luận có đáp số là số sẽ được chuyển thành dạng trả lời ngắn.</div>
-    <div class="row end mt"><button class="btn" id="aGo2" ${S.sample?'':'disabled'}>Phân tích & phân loại</button></div>`;
-    $('#aRaw').oninput=()=>A.raw=$('#aRaw').value;
-    let pdfDoc=null;
-    $('#aPdf').onchange=async()=>{
-      const f=$('#aPdf').files[0]; const info=$('#pdfInfo'); pdfDoc=null;
-      if(!f){ info.textContent=''; return; }
-      info.innerHTML='<span class="spin"></span> Đang mở file PDF…';
-      try{
-        pdfDoc=await openPdf(f);
-        const n=pdfDoc.numPages;
-        let sampleText=''; try{ sampleText=await pageText(pdfDoc,1); }catch(e){}
-        const scanned = sampleText.replace(/\s/g,'').length<40;
-        info.innerHTML=`<div><b>${esc(f.name)}</b> — ${n} trang ${scanned?'<span class="chip warn">có vẻ là bản scan</span>':'<span class="chip good">có lớp chữ</span>'}</div>
-          <div class="grid g3 mt"><div><label class="f">Từ trang</label><input type="number" id="pFrom" min="1" max="${n}" value="1"></div>
-          <div><label class="f">Đến trang</label><input type="number" id="pTo" min="1" max="${n}" value="${Math.min(n,20)}"></div>
-          <div><label class="f">Trang bảng đáp án</label><input type="text" id="pAns" placeholder="VD: ${n}  hoặc  ${Math.max(1,n-1)}-${n}"></div></div>
-          <label class="row mt" style="gap:6px;cursor:pointer"><input type="checkbox" id="pImg" ${canImg?'checked':'disabled'}> Gửi kèm ảnh từng trang cho AI (đọc công thức, hình vẽ, bản scan chính xác hơn)</label>
-          ${!canImg&&scanned?'<div class="banner mt">File scan cần gửi ảnh cho AI nhưng phiên này chưa hỗ trợ ảnh — kết quả có thể trống.</div>':''}
-          <div class="hint">Mỗi lượt AI xử lý 2 trang (khoảng 1–2 phút/lượt). File dài nên chia nhỏ phạm vi trang. Nếu đáp án nằm ở cuối file, ghi số trang bảng đáp án để AI đối chiếu.</div>`;
-      }catch(e){ info.innerHTML=`<span style="color:var(--bad)">${esc(e.message||'Không đọc được file PDF')}</span>`; }
-    };
-    $('#aGo2').onclick=async()=>{
-      if (pdfDoc){
-        const n=pdfDoc.numPages, from=Math.max(1,+$('#pFrom').value||1), to=Math.min(n,+$('#pTo').value||n);
-        if (to<from){ toast('Phạm vi trang không hợp lệ'); return; }
-        const ansPages=parsePages($('#pAns').value, n);
-        await runPdf(pdfDoc, from, to, ansPages, $('#pImg').checked);
-        return;
-      }
-      const files = $('#aImgs') ? [...$('#aImgs').files].slice(0,4) : [];
-      if (!A.raw.trim() && !files.length){ toast('Hãy chọn file PDF, dán nội dung đề hoặc chọn ảnh'); return; }
-      await runAI(importPrompt(A.raw, files.length>0, ''), files, null);
-    };
-  }
-  renderDrafts();
+    await runAI(prompt, [], {grade:A.grade, topic:A.topic, type:A.type, level:A.level});
+  };
 }
+
+/* ---------- Tab 2: nhập đề có sẵn ---------- */
+function impForm(form, canImg, imgMax){
+  const A=ASTATE;
+  form.innerHTML=`<div class="grid g2">
+    <div><h3>📄 File đề (PDF)</h3>
+      <input type="file" id="aPdf" accept="application/pdf,.pdf">
+      <div id="pdfInfo" class="mt small muted">Đề thi thử, đề kiểm tra, file chuyên đề… AI xử lý lần lượt từng 2 trang.</div>
+      <h3 class="mt">📗 File hướng dẫn giải (PDF, không bắt buộc)</h3>
+      <input type="file" id="aSolPdf" accept="application/pdf,.pdf">
+      <div id="solInfo" class="mt small muted">AI sẽ đối chiếu đáp án theo hướng dẫn giải và lấy hình vẽ trong lời giải. Nếu lời giải nằm ngay trong file đề thì không cần tải.</div></div>
+    <div><h3>✍️ Hoặc dán nội dung / ảnh chụp</h3>
+      <textarea id="aRaw" rows="6" placeholder="Dán đề, có thể kèm lời giải…">${esc(A.raw)}</textarea>
+      ${canImg?`<label class="f">Ảnh chụp đề / lời giải (tối đa ${Math.min(4,imgMax)} ảnh)</label><input type="file" id="aImgs" accept="image/*" multiple>`:''}</div>
+  </div>
+  ${canImg?'<div class="hint mt">✂️ Hình vẽ trong đề và lời giải được AI tự cắt và gắn vào câu hỏi. Nếu khung cắt chưa chuẩn, bấm <b>Cắt hình</b> trên từng câu để khoanh lại.</div>':'<div class="banner mt">Phiên này chưa cho phép gửi ảnh cho AI nên không tự cắt được hình vẽ. Có thể tải hình thủ công bằng nút Sửa.</div>'}
+  <div class="row end mt"><button class="btn" id="aGo2" ${S.sample?'':'disabled'}>Phân tích & phân loại</button></div>`;
+  $('#aRaw').oninput=()=>A.raw=$('#aRaw').value;
+  let pdfDoc=null, solDoc=null;
+  $('#aPdf').onchange=async()=>{
+    const f=$('#aPdf').files[0]; const info=$('#pdfInfo'); pdfDoc=null;
+    if(!f){ info.textContent=''; return; }
+    info.innerHTML='<span class="spin"></span> Đang mở file PDF…';
+    try{
+      pdfDoc=await openPdf(f);
+      const n=pdfDoc.numPages;
+      let sampleText=''; try{ sampleText=await pageText(pdfDoc,1); }catch(e){}
+      const scanned = sampleText.replace(/\s/g,'').length<40;
+      info.innerHTML=`<div><b>${esc(f.name)}</b> — ${n} trang ${scanned?'<span class="chip warn">bản scan</span>':'<span class="chip good">có lớp chữ</span>'}</div>
+        <div class="grid g3 mt"><div><label class="f">Từ trang</label><input type="number" id="pFrom" min="1" max="${n}" value="1"></div>
+        <div><label class="f">Đến trang</label><input type="number" id="pTo" min="1" max="${n}" value="${Math.min(n,20)}"></div>
+        <div><label class="f">Trang bảng đáp án</label><input type="text" id="pAns" placeholder="VD: ${n}"></div></div>
+        <label class="row mt" style="gap:6px;cursor:pointer"><input type="checkbox" id="pImg" ${canImg?'checked':'disabled'}> Gửi ảnh trang cho AI (đọc công thức, bản scan, cắt hình vẽ)</label>
+        <div class="hint">Mỗi lượt khoảng 1–2 phút. File dài nên chia nhỏ phạm vi trang.</div>`;
+    }catch(e){ info.innerHTML=`<span style="color:var(--bad)">${esc(e.message||'Không đọc được file PDF')}</span>`; }
+  };
+  $('#aSolPdf').onchange=async()=>{
+    const f=$('#aSolPdf').files[0]; const info=$('#solInfo'); solDoc=null;
+    if(!f){ info.textContent=''; return; }
+    info.innerHTML='<span class="spin"></span> Đang đọc file hướng dẫn giải…';
+    try{
+      const doc=await openPdf(f); const pages=[];
+      for (let p=1;p<=Math.min(doc.numPages,80);p++) pages.push({p, text:await pageText(doc,p)});
+      const segs=buildSolSegs(pages);
+      const scanned=pages.reduce((a,x)=>a+x.text.replace(/\s/g,'').length,0) < 60*pages.length;
+      solDoc={doc, pages, segs, name:f.name};
+      info.innerHTML=`<div><b>${esc(f.name)}</b> — ${doc.numPages} trang · tìm thấy ${segs.length} đoạn "Câu …"</div>${scanned?'<div class="banner mt">File hướng dẫn giải có vẻ là bản scan (không có lớp chữ) nên không tự ghép được theo số câu. Nên dùng file PDF xuất từ Word, hoặc gộp lời giải vào file đề.</div>':''}`;
+    }catch(e){ info.innerHTML=`<span style="color:var(--bad)">${esc(e.message||'Không đọc được file PDF')}</span>`; }
+  };
+  $('#aGo2').onclick=async()=>{
+    if (pdfDoc){
+      const n=pdfDoc.numPages, from=Math.max(1,+$('#pFrom').value||1), to=Math.min(n,+$('#pTo').value||n);
+      if (to<from){ toast('Phạm vi trang không hợp lệ'); return; }
+      await runPdf(pdfDoc, from, to, parsePages($('#pAns').value, n), $('#pImg').checked, solDoc, imgMax);
+      return;
+    }
+    const files = $('#aImgs') ? [...$('#aImgs').files].slice(0,Math.min(4,imgMax||4)) : [];
+    if (!A.raw.trim() && !files.length){ toast('Hãy chọn file PDF, dán nội dung đề hoặc chọn ảnh'); return; }
+    const keys=[];
+    for (let i=0;i<files.length;i++){ try{ const url=await fileToDataURL(files[i],1500); keys.push(addPage(url, 'Ảnh '+(i+1))); }catch(e){} }
+    const blobs=await Promise.all(keys.map(k=>dataUrlToBlob(PAGES[k].url)));
+    const label=keys.map((k,i)=>`Ảnh ${i+1} = ${PAGES[k].label}`).join('; ');
+    await runAI(importPrompt(A.raw, keys.length>0, keys.length?`Danh sách ảnh đính kèm: ${label}.`:''), blobs, null, keys);
+  };
+}
+function addPage(url, label){ const k='p'+(++PAGE_SEQ); PAGES[k]={url,label}; return k; }
+function dataUrlToBlob(url){ const [head,b64]=String(url).split(','); const mime=(/data:([^;]+)/.exec(head)||[])[1]||'image/jpeg'; const bin=atob(b64); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); return Promise.resolve(new Blob([arr],{type:mime})); }
+function buildSolSegs(pages){
+  let full='', marks=[];
+  pages.forEach(pg=>{ marks.push([full.length, pg.p]); full+=pg.text+'\n'; });
+  const scan=(re)=>{ const r=[]; let m; while((m=re.exec(full))) r.push({i:m.index+(m[0].length-m[0].trimStart().length), num:+m[1]}); return r; };
+  let hits=scan(/(?:^|\n)[ \t]*C[âÂ]u\s*(\d{1,2})/g);           // "Câu n" ở đầu dòng
+  if (hits.length<3) hits=scan(/C[âa]u\s*(\d{1,2})\s*[.:)\-]/gi); // dự phòng
+  const pageAt=i=>{ let p=1; for(const [o,pp] of marks){ if(o<=i) p=pp; else break; } return p; };
+  return hits.map((x,k)=>({num:x.num, page:pageAt(x.i), text:full.slice(x.i, k+1<hits.length?hits[k+1].i:full.length).slice(0,3500)}));
+}
+function qNumbers(text){ const s=new Set(); const re=/C[âa]u\s*(\d{1,2})\b/gi; let m; while((m=re.exec(text))) s.add(+m[1]); return [...s]; }
 function importPrompt(text, hasImg, extra){
-  return `Bạn là giáo viên Toán THPT ở Việt Nam. Dưới đây là nội dung một đề/bộ câu hỏi${hasImg?' (kèm ảnh chụp/ảnh trang — hãy đọc kỹ ảnh, ưu tiên ảnh khi văn bản bị lỗi font hoặc mất công thức)':''}.
+  return `Bạn là giáo viên Toán THPT ở Việt Nam. Dưới đây là nội dung một đề/bộ câu hỏi${hasImg?' (kèm ảnh — hãy đọc kỹ ảnh, ưu tiên ảnh khi văn bản bị lỗi font hoặc mất công thức)':''}.
 Nhiệm vụ:
 1. Tách từng câu hỏi riêng biệt.
 2. Xác định dạng: "mcq" (có 4 phương án A-D), "tf" (có 4 ý a-d đúng/sai), "short" (trả lời ngắn/điền đáp số). Câu tự luận có đáp số là một số thì chuyển thành "short". Câu không thể chuyển (chứng minh, vẽ hình…) thì bỏ qua.
 3. Phân loại lớp và chủ đề theo đúng danh sách mã sau:
 ${topicListText()}
 4. Đánh giá mức độ NB/TH/VD/VDC.
-5. Giải chi tiết từng câu và xác định đáp án. Nếu đề có sẵn đáp án thì dùng nhưng vẫn kiểm tra lại; nếu thấy đáp án có sẵn sai thì theo kết quả đúng và ghi chú trong lời giải.
-6. Giữ nguyên nội dung đề, chỉ chuẩn hóa công thức sang LaTeX. Bỏ phần đầu trang/chân trang, số trang, tên trường, mã đề. Nếu câu cần hình vẽ, mô tả hình bằng lời trong đề.
+5. Giải chi tiết từng câu và xác định đáp án. Nếu có đáp án/hướng dẫn giải sẵn thì dựa vào đó nhưng vẫn kiểm tra lại; nếu thấy đáp án có sẵn sai thì theo kết quả đúng và ghi chú trong lời giải. Lời giải viết rõ ràng, dễ hiểu cho học sinh.
+6. Giữ nguyên nội dung đề, chỉ chuẩn hóa công thức sang LaTeX. Bỏ phần đầu trang/chân trang, số trang, tên trường, mã đề.
 ${extra||''}
-${AI_SCHEMA}
+${AI_SCHEMA}${hasImg?FIG_SCHEMA:'\nKhông có ảnh đính kèm: nếu câu cần hình vẽ thì mô tả hình bằng lời trong đề.'}
 
 Nội dung đề:
 """
@@ -1221,12 +1451,37 @@ async function pageText(pdf,n){
   for (const it of tc.items){ if(!('str' in it)) continue; const y=it.transform[5]; if(lastY!==null&&Math.abs(y-lastY)>3) out+='\n'; else if(out&&!/\s$/.test(out)) out+=' '; out+=it.str; lastY=y; if(it.hasEOL){ out+='\n'; lastY=null; } }
   return out.replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
 }
-async function pageImage(pdf,n){
+const PAGE_CACHE = new WeakMap();
+async function pageKey(pdf, n, label){
+  let m=PAGE_CACHE.get(pdf); if(!m){ m={}; PAGE_CACHE.set(pdf,m); }
+  if (m[n] && PAGES[m[n]]) return m[n];
   const p=await pdf.getPage(n); const vp0=p.getViewport({scale:1}); const scale=Math.min(2.2,1500/vp0.width); const vp=p.getViewport({scale});
   const c=document.createElement('canvas'); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
   const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
   await p.render({canvasContext:ctx, viewport:vp}).promise;
-  return await new Promise(r=>c.toBlob(r,'image/jpeg',0.8));
+  m[n]=addPage(c.toDataURL('image/jpeg',0.85), label);
+  return m[n];
+}
+function loadImage(src){ return new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=src; }); }
+async function cropFig(key, box, maxW=800, pad=12){
+  const p=PAGES[key]; if(!p||!Array.isArray(box)||box.length!==4) return null;
+  let [x1,y1,x2,y2]=box.map(Number); if([x1,y1,x2,y2].some(v=>!isFinite(v))) return null;
+  if (Math.max(x1,y1,x2,y2)<=1.001){ x1*=1000; y1*=1000; x2*=1000; y2*=1000; } // AI trả về tỉ lệ 0-1
+  if(x2<x1)[x1,x2]=[x2,x1]; if(y2<y1)[y1,y2]=[y2,y1];
+  x1=Math.max(0,x1-pad); y1=Math.max(0,y1-pad); x2=Math.min(1000,x2+pad); y2=Math.min(1000,y2+pad);
+  const img=await loadImage(p.url); const W=img.naturalWidth, H=img.naturalHeight;
+  const sx=x1/1000*W, sy=y1/1000*H, sw=(x2-x1)/1000*W, sh=(y2-y1)/1000*H;
+  if (sw<15||sh<15) return null;
+  const sc=Math.min(1,maxW/sw); const c=document.createElement('canvas'); c.width=Math.round(sw*sc); c.height=Math.round(sh*sc);
+  const x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,sx,sy,sw,sh,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg',0.85);
+}
+async function applyFigs(q, keys){
+  q._pages=keys.slice();
+  const one=async(f)=>{ if(!f||typeof f!=='object') return null; const k=keys[(+f.img||1)-1]; if(!k) return null; try{ return await cropFig(k, f.box); }catch(e){ return null; } };
+  const qi=await one(q.fig); if(qi) q.img=qi;
+  const si=await one(q.solFig); if(si) q.solImg=si;
+  return q;
 }
 function normDraft(o, defaults){
   const q={...(defaults||{}), ...o, src:'ai'};
@@ -1242,24 +1497,25 @@ function aiErrorHtml(e){
   return `Lỗi: ${esc((e&&e.message)||'không rõ')}. Hãy thử lại hoặc giảm số câu/số trang.`;
 }
 function progBox(html){ const b=$('#aiProgBox'); if(b) b.innerHTML=html; }
-async function runAI(prompt, images, defaults){
+async function runAI(prompt, images, defaults, pageKeys){
   if (ASTATE.busy) return; ASTATE.busy=true;
   const ctrl=new AbortController();
   progBox(`<div class="card"><span class="spin"></span> <span id="aiProg">AI đang soạn và tự kiểm tra lời giải… (có thể mất 1–3 phút)</span> <button class="btn ghost sm" id="aiStop" style="margin-left:10px">Dừng</button></div>`);
   $('#aiStop').onclick=()=>ctrl.abort();
   try{
     const opt={ modelTier:'complex', signal:ctrl.signal, onText:({text})=>{ const p=$('#aiProg'); if(p) p.textContent=`AI đang viết… ${text.length.toLocaleString('vi-VN')} ký tự`; } };
-    if (images.length) opt.images=images;
+    if (images && images.length) opt.images=images;
     const res=await S.sample(prompt, opt);
     const drafts=extractJsonArray(res.text).map(o=>normDraft(o,defaults));
-    S.aiDrafts = drafts.map(q=>({q, on:true}));
+    if (pageKeys && pageKeys.length) for (const q of drafts) await applyFigs(q, pageKeys);
+    S.aiDrafts=(S.aiDrafts||[]).concat(drafts.map(q=>({q, on:true})));
     progBox('');
     toast(`AI đã soạn ${drafts.length} câu — hãy kiểm tra trước khi lưu`);
   }catch(e){ progBox(`<div class="banner">${aiErrorHtml(e)}</div>`); }
   ASTATE.busy=false;
   renderDrafts();
 }
-async function runPdf(pdf, from, to, ansPages, withImg){
+async function runPdf(pdf, from, to, ansPages, withImg, sol, imgMax){
   if (ASTATE.busy) return; ASTATE.busy=true;
   const ctrl=new AbortController(); let stopped=false;
   const pages=[]; for(let i=from;i<=to;i++) if(!ansPages.includes(i)) pages.push(i);
@@ -1269,22 +1525,37 @@ async function runPdf(pdf, from, to, ansPages, withImg){
   const setProg=(t,p)=>{ const a=$('#aiProg'); if(a) a.textContent=t; const b=$('#aiBar'); if(b&&p!==undefined) b.style.width=Math.round(p*100)+'%'; };
   let ansText='';
   try{ for(const p of ansPages) ansText+=`--- Trang ${p} ---\n`+await pageText(pdf,p)+'\n'; }catch(e){}
-  let added=0, failed=[];
+  const maxImgs = withImg ? Math.max(1, imgMax||4) : 0;
+  let added=0, withFig=0; const failed=[];
   for (let ci=0; ci<chunks.length && !stopped; ci++){
     const ch=chunks[ci];
     const label=`trang ${ch.join('–')}`;
     setProg(`Lượt ${ci+1}/${chunks.length}: đang đọc ${label}…`, ci/chunks.length);
     try{
-      let text=''; for(const p of ch) text+=`--- Trang ${p} ---\n`+await pageText(pdf,p)+'\n';
+      let text=''; for(const p of ch) text+=`--- Trang đề ${p} ---\n`+await pageText(pdf,p)+'\n';
       const next=ch[ch.length-1]+1; let nextText='';
       if (next<=pdf.numPages && !ansPages.includes(next)) { try{ nextText=(await pageText(pdf,next)).slice(0,1500); }catch(e){} }
-      const imgs=[]; if (withImg) for(const p of ch) imgs.push(await pageImage(pdf,p));
+      // Hướng dẫn giải: ghép theo số câu xuất hiện trong các trang đề
+      let solText='', solPages=[];
+      if (sol && sol.segs.length){
+        const nums=qNumbers(text + '\n' + nextText.slice(0,300));
+        const segs=sol.segs.filter(s=>nums.includes(s.num));
+        solText=segs.map(s=>`--- (trang HDG ${s.page}) ---\n${s.text}`).join('\n').slice(0,12000);
+        solPages=[...new Set(segs.map(s=>s.page))].slice(0,3);
+      }
+      const keys=[], labels=[];
+      if (maxImgs){
+        for (const p of ch){ if(keys.length>=maxImgs) break; keys.push(await pageKey(pdf,p,'Trang đề '+p)); labels.push('trang đề '+p); }
+        if (sol) for (const p of solPages){ if(keys.length>=maxImgs) break; keys.push(await pageKey(sol.doc,p,'Trang HDG '+p)); labels.push('trang hướng dẫn giải '+p); }
+      }
+      const imgs = await Promise.all(keys.map(k=>dataUrlToBlob(PAGES[k].url)));
       const extra=`7. Đây là ${label} của một file PDF dài. BỎ QUA phần đầu trang nếu đó là đuôi của một câu đã bắt đầu ở trang trước. Nếu câu cuối cùng bị cắt sang trang sau, hãy dùng phần "Trang kế tiếp" bên dưới để hoàn thiện câu đó, nhưng KHÔNG tách thêm các câu bắt đầu ở trang kế tiếp.
-${nextText?`Trang kế tiếp (chỉ để tham khảo phần còn lại của câu cuối):\n"""\n${nextText}\n"""\n`:''}${ansText?`Bảng đáp án của cả đề (đối chiếu theo số thứ tự câu, vẫn phải tự kiểm tra lại):\n"""\n${ansText.slice(0,4000)}\n"""\n`:''}`;
+${keys.length?`Danh sách ảnh đính kèm theo thứ tự: ${labels.map((l,i)=>`Ảnh ${i+1} = ${l}`).join('; ')}.\n`:''}${nextText?`Trang kế tiếp (chỉ để tham khảo phần còn lại của câu cuối):\n"""\n${nextText}\n"""\n`:''}${ansText?`Bảng đáp án của cả đề (đối chiếu theo số thứ tự câu, vẫn phải tự kiểm tra lại):\n"""\n${ansText.slice(0,4000)}\n"""\n`:''}${solText?`HƯỚNG DẪN GIẢI CHÍNH THỨC cho các câu trong phần này (chú ý: đề 2025 đánh số lại "Câu 1" ở mỗi phần, hãy ghép đúng theo nội dung). Dùng hướng dẫn giải để xác định đáp án và viết lại lời giải chi tiết, dễ hiểu; lấy hình vẽ lời giải từ ảnh trang hướng dẫn giải nếu có:\n"""\n${solText}\n"""\n`:''}`;
       const opt={ modelTier:'complex', signal:ctrl.signal, onText:({text:t})=>setProg(`Lượt ${ci+1}/${chunks.length} (${label}): AI đang viết… ${t.length.toLocaleString('vi-VN')} ký tự`) };
       if (imgs.length) opt.images=imgs;
       const res=await S.sample(importPrompt(text, imgs.length>0, extra), opt);
       const drafts=extractJsonArray(res.text).map(o=>{ const q=normDraft(o,null); q.srcNote=label; return q; });
+      if (keys.length) for (const q of drafts){ await applyFigs(q, keys); if(q.img||q.solImg) withFig++; }
       S.aiDrafts=(S.aiDrafts||[]).concat(drafts.map(q=>({q,on:true})));
       added+=drafts.length;
       renderDrafts();
@@ -1295,42 +1566,154 @@ ${nextText?`Trang kế tiếp (chỉ để tham khảo phần còn lại của c
     }
   }
   ASTATE.busy=false;
-  progBox(`<div class="banner" style="background:var(--good-soft);border-color:#bfe3cf;color:var(--good)">${stopped?'Đã dừng. ':'Hoàn tất. '}AI đã tách được <b>${added}</b> câu từ file PDF.${failed.length?` <span style="color:var(--bad)">Chưa xử lý được: ${failed.join(', ')} — có thể chạy lại riêng các trang này.</span>`:''} Hãy duyệt bên dưới rồi lưu.</div>`);
+  progBox(`<div class="banner" style="background:var(--good-soft);border-color:#bfe3cf;color:var(--good)">${stopped?'Đã dừng. ':'Hoàn tất. '}AI đã tách được <b>${added}</b> câu${withFig?`, trong đó <b>${withFig}</b> câu có hình vẽ`:''}.${failed.length?` <span style="color:var(--bad)">Chưa xử lý được: ${failed.join(', ')} — có thể chạy lại riêng các trang này.</span>`:''} Hãy kiểm tra hình vẽ, đáp án bên dưới rồi lưu.</div>`);
   renderDrafts();
 }
+
+/* ---------- Công cụ cắt hình thủ công ---------- */
+function cropTool(q, onDone){
+  const keys=(q._pages||[]).filter(k=>PAGES[k]);
+  if (!keys.length){ toast('Không còn ảnh trang gốc (trang đã tải lại). Hãy tải ảnh hình vẽ thủ công bằng nút Sửa.'); return; }
+  let cur = (q.fig && keys[(+q.fig.img||1)-1]) || keys[0];
+  let sel = null; // [x1,y1,x2,y2] 0-1000
+  openModal(`<div class="row between"><h2 style="margin:0">✂️ Cắt hình vẽ từ trang</h2><button class="btn ghost sm" id="ctClose">✕</button></div>
+    <div class="row mt" id="ctPages">${keys.map(k=>`<button class="btn ghost sm" data-k="${k}">${esc(PAGES[k].label)}</button>`).join('')}</div>
+    <p class="hint">Kéo chuột (hoặc kéo ngón tay) để khoanh vùng hình vẽ, rồi bấm gắn vào đề bài hoặc lời giải. Có thể gắn cả hai.</p>
+    <div class="grid" style="grid-template-columns:1fr 260px;gap:14px;align-items:start">
+      <div id="ctWrap" style="position:relative;display:inline-block;max-width:100%;touch-action:none;user-select:none;border:1px solid var(--line);cursor:crosshair"><img id="ctImg" draggable="false" style="display:block;max-width:100%;max-height:72vh"><div id="ctSel" style="position:absolute;border:2px solid #e3342f;background:rgba(255,185,38,.2);display:none;pointer-events:none"></div></div>
+      <div><div class="small"><b>Hình đề hiện tại</b></div><div id="ctQPrev" class="prev mt" style="min-height:60px">${q.img?`<img src="${esc(q.img)}" style="max-width:100%">`:'<span class="muted small">Chưa có</span>'}</div>
+        <div class="small mt"><b>Hình lời giải hiện tại</b></div><div id="ctSPrev" class="prev mt" style="min-height:60px">${q.solImg?`<img src="${esc(q.solImg)}" style="max-width:100%">`:'<span class="muted small">Chưa có</span>'}</div></div>
+    </div>
+    <div class="row end mt"><button class="btn ghost sm" id="ctQRm">Bỏ hình đề</button><button class="btn ghost sm" id="ctSRm">Bỏ hình lời giải</button><span style="flex:1"></span><button class="btn ghost" id="ctQ">Gắn vào đề bài</button><button class="btn ghost" id="ctS">Gắn vào lời giải</button><button class="btn" id="ctDone">Xong</button></div>`, true);
+  const img=$('#ctImg'), wrap=$('#ctWrap'), box=$('#ctSel');
+  const show=()=>{ $$('#ctPages [data-k]').forEach(b=>{ b.classList.toggle('ghost', b.dataset.k!==cur); }); img.src=PAGES[cur].url; sel=null; box.style.display='none';
+    const f = q.fig && keys[(+q.fig.img||1)-1]===cur ? q.fig.box : null; if (f && Array.isArray(f)) { sel=f.map(Number); draw(); } };
+  const draw=()=>{ if(!sel){ box.style.display='none'; return; } const r=img.getBoundingClientRect(); const [x1,y1,x2,y2]=sel; box.style.display='block'; box.style.left=(Math.min(x1,x2)/1000*r.width)+'px'; box.style.top=(Math.min(y1,y2)/1000*r.height)+'px'; box.style.width=(Math.abs(x2-x1)/1000*r.width)+'px'; box.style.height=(Math.abs(y2-y1)/1000*r.height)+'px'; };
+  img.onload=draw;
+  let start=null;
+  const pt=e=>{ const r=img.getBoundingClientRect(); return [Math.max(0,Math.min(1000,(e.clientX-r.left)/r.width*1000)), Math.max(0,Math.min(1000,(e.clientY-r.top)/r.height*1000))]; };
+  wrap.onpointerdown=e=>{ e.preventDefault(); start=pt(e); sel=[...start,...start]; try{ wrap.setPointerCapture(e.pointerId); }catch(_){} draw(); };
+  wrap.onpointermove=e=>{ if(!start) return; const p=pt(e); sel=[start[0],start[1],p[0],p[1]]; draw(); };
+  wrap.onpointerup=()=>{ start=null; };
+  $$('#ctPages [data-k]').forEach(b=>b.onclick=()=>{ cur=b.dataset.k; show(); });
+  const doCrop=async(kind)=>{ if(!sel || Math.abs(sel[2]-sel[0])<8 || Math.abs(sel[3]-sel[1])<8){ toast('Hãy kéo để khoanh vùng hình trước'); return; }
+    const url=await cropFig(cur, sel, 800, 0); if(!url){ toast('Vùng chọn quá nhỏ'); return; }
+    if (kind==='q'){ q.img=url; $('#ctQPrev').innerHTML=`<img src="${url}" style="max-width:100%">`; } else { q.solImg=url; $('#ctSPrev').innerHTML=`<img src="${url}" style="max-width:100%">`; }
+    toast(kind==='q'?'Đã gắn hình vào đề bài':'Đã gắn hình vào lời giải'); };
+  $('#ctQ').onclick=()=>doCrop('q'); $('#ctS').onclick=()=>doCrop('s');
+  $('#ctQRm').onclick=()=>{ delete q.img; $('#ctQPrev').innerHTML='<span class="muted small">Chưa có</span>'; };
+  $('#ctSRm').onclick=()=>{ delete q.solImg; $('#ctSPrev').innerHTML='<span class="muted small">Chưa có</span>'; };
+  const finish=()=>{ closeModal(); onDone && onDone(q); };
+  $('#ctDone').onclick=finish; $('#ctClose').onclick=finish;
+  show();
+}
+
+/* ---------- Duyệt & xuất ---------- */
 function exportDrafts(){
   const pick=(S.aiDrafts||[]).filter(d=>d.on).map(d=>{ const o=cleanQ(d.q); o.src='ai'; return o; });
   if (!pick.length){ toast('Chưa chọn câu nào'); return; }
   const bad=pick.filter(q=>validateQ(q)).length;
   const data=JSON.stringify(pick);
+  const nImg=pick.filter(q=>q.img||q.solImg).length;
   openModal(`<h2>Xuất ${pick.length} câu hỏi</h2>${bad?`<div class="banner">Có ${bad} câu còn thiếu thông tin — trang V2P sẽ báo lỗi khi nhập. Hãy sửa hoặc bỏ chọn.</div>`:''}
-    <p class="small">Bấm <b>Sao chép</b>, mở trang <b>V2P Education → Ngân hàng câu hỏi → Nhập JSON</b> rồi dán vào và bấm Nhập.</p>
-    <textarea id="expTa" style="min-height:220px;font-family:monospace;font-size:12px" readonly>${esc(data)}</textarea>
+    <p class="small">Bấm <b>Sao chép</b>, mở trang <b>V2P Education → Ngân hàng câu hỏi → Nhập JSON</b> rồi dán vào và bấm Nhập.${nImg?` Có ${nImg} câu kèm hình vẽ (đã nằm sẵn trong dữ liệu).`:''}</p>
+    <textarea id="expTa" style="min-height:220px;font-family:monospace;font-size:12px" readonly>${esc(data.length>200000?data.slice(0,2000)+'\n… (dữ liệu dài, hãy dùng nút Sao chép)':data)}</textarea>
     <div class="row end mt"><button class="btn ghost" id="expDone">Đã nhập xong — xóa các câu này khỏi xưởng</button><button class="btn" id="cpExp">Sao chép</button></div>`, true);
-  $('#cpExp').onclick=async()=>{ try{ await navigator.clipboard.writeText(data); toast('Đã sao chép JSON'); }catch(e){ const t=$('#expTa'); t.focus(); t.select(); toast('Nhấn Ctrl+C (hoặc giữ để sao chép) để sao chép'); } };
+  $('#cpExp').onclick=async()=>{ try{ await navigator.clipboard.writeText(data); toast('Đã sao chép JSON'); }catch(e){ const t=$('#expTa'); t.value=data; t.focus(); t.select(); toast('Nhấn Ctrl+C để sao chép'); } };
   $('#expDone').onclick=()=>{ S.aiDrafts=(S.aiDrafts||[]).filter(d=>!d.on); closeModal(); renderDrafts(); };
 }
 function renderDrafts(){
   const out=$('#aiOut'); if(!out) return;
+  if (ASTATE.tab==='bp') return;
   const D=S.aiDrafts||[]; if(!D.length){ out.innerHTML=''; return; }
   const on=D.filter(d=>d.on).length;
   out.innerHTML=`<div class="row between mb"><h2 style="margin:0">Duyệt ${D.length} câu do AI soạn</h2><div class="row"><button class="btn ghost sm" id="dClear">Bỏ tất cả</button><button class="btn" id="dSave">${MODE==='workshop'?`Xuất JSON ${on} câu đã chọn`:`Lưu ${on} câu đã chọn vào ngân hàng`}</button></div></div>
-  <div class="banner">⚠️ AI có thể nhầm đáp án. Thầy/cô vui lòng đọc lời giải, bấm <b>Sửa</b> nếu cần trước khi lưu. Câu bị bỏ chọn sẽ không được lưu.</div>
+  <div class="banner">⚠️ AI có thể nhầm đáp án hoặc cắt hình chưa chuẩn. Thầy/cô kiểm tra lời giải, bấm <b>Sửa</b> hoặc <b>✂️ Cắt hình</b> nếu cần trước khi lưu. Câu bị bỏ chọn sẽ không được lưu.</div>
   <div id="dMsg" class="small mb"></div>
-  ${D.map((d,i)=>{ const err=validateQ(cleanQ(d.q)); return `<div class="ai-card ${d.on?'':'off'}"><div class="qhead"><label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" data-on="${i}" ${d.on?'checked':''}> <b>Câu ${i+1}</b></label><span class="chip pri">${TYPE_SHORT[d.q.type]||d.q.type}</span><span class="chip">Lớp ${d.q.grade}</span><span class="chip">${esc(topicName(d.q.topic))}</span><span class="chip">${LEVELS[d.q.level]||d.q.level}</span>${d.q.srcNote?`<span class="chip warn">PDF ${esc(d.q.srcNote)}</span>`:''}${err?`<span class="chip bad">${esc(err)}</span>`:''}<button class="btn ghost sm" style="margin-left:auto" data-edd="${i}">Sửa</button></div>${previewHtml(d.q,true)}</div>`; }).join('')}`;
+  ${D.map((d,i)=>{ const err=validateQ(cleanQ(d.q)); const canCrop=(d.q._pages||[]).some(k=>PAGES[k]); const figNeed=(d.q.fig&&!d.q.img)||(d.q.solFig&&!d.q.solImg);
+    return `<div class="ai-card ${d.on?'':'off'}"><div class="qhead"><label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" data-on="${i}" ${d.on?'checked':''}> <b>Câu ${i+1}</b></label><span class="chip pri">${TYPE_SHORT[d.q.type]||d.q.type}</span><span class="chip">Lớp ${d.q.grade}</span><span class="chip">${esc(topicName(d.q.topic))}</span><span class="chip">${LEVELS[d.q.level]||d.q.level}</span>${d.q.srcNote?`<span class="chip warn">PDF ${esc(d.q.srcNote)}</span>`:''}${d.q.img||d.q.solImg?'<span class="chip good">🖼 có hình</span>':''}${figNeed?'<span class="chip bad">cần cắt lại hình</span>':''}${err?`<span class="chip bad">${esc(err)}</span>`:''}<span style="margin-left:auto" class="row">${canCrop?`<button class="btn ghost sm" data-crop="${i}">✂️ Cắt hình</button>`:''}<button class="btn ghost sm" data-edd="${i}">Sửa</button></span></div>${previewHtml(d.q,true)}</div>`; }).join('')}`;
   typeset(out);
   $$('[data-on]').forEach(c=>c.onchange=()=>{ D[+c.dataset.on].on=c.checked; renderDrafts(); });
-  $$('[data-edd]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.edd; editorModal(JSON.parse(JSON.stringify(D[i].q)), null, {saveLabel:'Cập nhật bản nháp', onSave:(o)=>{ D[i].q={...o, src:'ai'}; renderDrafts(); }}); });
+  $$('[data-crop]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.crop; cropTool(D[i].q, ()=>renderDrafts()); });
+  $$('[data-edd]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.edd; const copy=JSON.parse(JSON.stringify(D[i].q));
+    const canCrop=(copy._pages||[]).some(k=>PAGES[k]);
+    editorModal(copy, null, {saveLabel:'Cập nhật bản nháp', onSave:(o)=>{ D[i].q={...o, src:'ai'}; renderDrafts(); }, cropBtn: canCrop ? (qq)=>{ D[i].q={...qq, src:'ai'}; cropTool(D[i].q, ()=>renderDrafts()); } : null}); });
   persistDrafts();
   $('#dClear').onclick=async()=>{ if(D.length && !await ask('Bỏ tất cả câu đang chờ duyệt?','Bỏ tất cả')) return; S.aiDrafts=[]; renderDrafts(); };
   if (MODE==='workshop'){ $('#dSave').onclick=()=>exportDrafts(); return; }
   $('#dSave').onclick=async()=>{
     const pick=D.filter(d=>d.on).map(d=>d.q); if(!pick.length){ toast('Chưa chọn câu nào'); return; }
-    const msg=$('#dMsg'); const bad=pick.map((q,i)=>validateQ(cleanQ(q))).filter(Boolean); if(bad.length){ msg.innerHTML=`<span style="color:var(--bad)">Có ${bad.length} câu thiếu thông tin — hãy sửa hoặc bỏ chọn.</span>`; return; }
+    const msg=$('#dMsg'); const bad=pick.map(q=>validateQ(cleanQ(q))).filter(Boolean); if(bad.length){ msg.innerHTML=`<span style="color:var(--bad)">Có ${bad.length} câu thiếu thông tin — hãy sửa hoặc bỏ chọn.</span>`; return; }
     $('#dSave').disabled=true; let ok=0;
     for (const q of pick){ try{ await saveQuestion(q); ok++; msg.textContent=`Đã lưu ${ok}/${pick.length}…`; }catch(e){ msg.textContent=`Lỗi ở câu ${ok+1}: ${errMsg(e)}`; $('#dSave').disabled=false; return; } }
     S.aiDrafts=S.aiDrafts.filter(d=>!d.on); toast(`Đã thêm ${ok} câu vào ngân hàng`); renderDrafts();
   };
+}
+
+/* ---------- Tab 3: phân tích đề mẫu thành cấu trúc ---------- */
+function bpForm(form, canImg, imgMax){
+  const A=ASTATE;
+  form.innerHTML=`<p class="small">Tải lên <b>đề mẫu</b> (ví dụ đề minh họa của Bộ, đề thi thử chuẩn) hoặc <b>bảng ma trận / đặc tả</b>. AI sẽ xác định từng câu thuộc dạng nào, chủ đề nào, mức độ nào để tạo <b>cấu trúc đề</b>. Sau đó bấm <b>Xuất JSON cấu trúc</b> và dán vào trang V2P: <b>Cấu trúc đề → Nhập JSON</b>. Học sinh sẽ được tạo đề mới theo đúng cấu trúc này mỗi lần làm.</p>
+    <div class="grid g2">
+      <div><label class="f">File đề mẫu / ma trận (PDF)</label><input type="file" id="bPdf" accept="application/pdf,.pdf"><div id="bInfo" class="hint"></div></div>
+      <div><label class="f">Hoặc dán nội dung đề mẫu / ma trận</label><textarea id="bRaw" rows="5">${esc(A.bpRaw)}</textarea></div>
+    </div>
+    <div class="grid g3">
+      <div><label class="f">Tên cấu trúc</label><input type="text" id="bName" placeholder="VD: Đề chuẩn TN THPT 2025"></div>
+      <div><label class="f">Thời gian (phút)</label><input type="number" id="bMin" value="90" min="0"></div>
+      <div><label class="f">Đề dành cho lớp</label><select id="bGrade">${[12,11,10].map(g=>`<option>${g}</option>`).join('')}</select></div>
+    </div>
+    <div class="row end mt"><button class="btn" id="bGo" ${S.sample?'':'disabled'}>Phân tích cấu trúc</button></div>`;
+  $('#bRaw').oninput=()=>A.bpRaw=$('#bRaw').value;
+  let doc=null;
+  $('#bPdf').onchange=async()=>{ const f=$('#bPdf').files[0]; doc=null; if(!f) return; $('#bInfo').innerHTML='<span class="spin"></span> Đang đọc…'; try{ doc=await openPdf(f); $('#bInfo').textContent=`${f.name} — ${doc.numPages} trang`; if(!$('#bName').value) $('#bName').value=f.name.replace(/\.pdf$/i,''); }catch(e){ $('#bInfo').textContent='Không đọc được file'; } };
+  $('#bGo').onclick=async()=>{
+    if (ASTATE.busy) return;
+    let text=A.bpRaw||''; const keys=[];
+    if (doc){ for(let p=1;p<=Math.min(doc.numPages,16);p++) text+=`\n--- Trang ${p} ---\n`+await pageText(doc,p);
+      if (canImg){ for(let p=1;p<=Math.min(doc.numPages,imgMax||4);p++) keys.push(await pageKey(doc,p,'Trang '+p)); } }
+    if (!text.trim() && !keys.length){ toast('Hãy chọn file hoặc dán nội dung'); return; }
+    const prompt=`Bạn là chuyên gia ra đề Toán THPT Việt Nam (cấu trúc thi tốt nghiệp THPT từ 2025, chương trình GDPT 2018).
+Dưới đây là một ĐỀ MẪU hoặc MA TRẬN/BẢN ĐẶC TẢ đề. Hãy xác định cấu trúc đề: liệt kê LẦN LƯỢT từng câu (đúng thứ tự trong đề) với dạng câu, chủ đề và mức độ nhận thức.
+- "type": "mcq" (Phần I – trắc nghiệm 4 phương án) | "tf" (Phần II – đúng/sai) | "short" (Phần III – trả lời ngắn)
+- "topic": mã chủ đề phù hợp nhất trong danh sách:
+${topicListText()}
+- "level": "NB" | "TH" | "VD" | "VDC" (với câu đúng/sai lấy mức độ của ý khó nhất)
+- "no": số hiệu câu trong đề, ví dụ "I.1", "II.3", "III.6"
+- "note": ghi chú ngắn nội dung kiến thức của câu (ví dụ "tìm khoảng đồng biến từ BBT")
+Nếu là ma trận ghi số lượng câu theo ô thì hãy trải ra thành từng câu.
+Trả về MỘT object JSON dạng {"name": "...", "minutes": số phút, "slots": [{"no":"I.1","type":"mcq","topic":"12-khaosat","level":"NB","note":"..."}, ...]} và không thêm chữ nào khác.
+${keys.length?`Có ${keys.length} ảnh trang đầu của file đính kèm theo thứ tự trang.`:''}
+
+Nội dung:
+"""
+${text.slice(0,30000)}
+"""`;
+    ASTATE.busy=true; const ctrl=new AbortController();
+    progBox(`<div class="card"><span class="spin"></span> <span id="aiProg">AI đang phân tích cấu trúc đề…</span> <button class="btn ghost sm" id="aiStop" style="margin-left:10px">Dừng</button></div>`);
+    $('#aiStop').onclick=()=>ctrl.abort();
+    try{
+      const opt={modelTier:'complex', signal:ctrl.signal, onText:({text:t})=>{ const p=$('#aiProg'); if(p) p.textContent=`AI đang phân tích… ${t.length.toLocaleString('vi-VN')} ký tự`; }};
+      if (keys.length) opt.images=await Promise.all(keys.map(k=>dataUrlToBlob(PAGES[k].url)));
+      const res=await S.sample(prompt, opt);
+      const o=extractJsonObject(res.text);
+      const slots=(o.slots||[]).filter(s=>TYPES[s.type]).map(s=>({type:s.type, topic:allTopics(topicGrade(s.topic)||12).some(t=>t.key===s.topic)?s.topic:'', level:LEVELS[s.level]?s.level:'', no:String(s.no||''), note:String(s.note||'')}));
+      if (!slots.length) throw {message:'Không nhận ra câu nào trong đề'};
+      const tOrder={mcq:0,tf:1,short:2}; slots.sort((a,b)=>tOrder[a.type]-tOrder[b.type]);
+      ASTATE.bp={ id:newId('bp'), name:$('#bName').value.trim()||o.name||'Cấu trúc đề', minutes:+$('#bMin').value||+o.minutes||90, grade:+$('#bGrade').value, slots };
+      progBox('');
+    }catch(e){ progBox(`<div class="banner">${aiErrorHtml(e)}</div>`); }
+    ASTATE.busy=false; renderBpResult();
+  };
+}
+function renderBpResult(){
+  const out=$('#aiOut'); if(!out) return; const bp=ASTATE.bp; if(!bp){ out.innerHTML=''; return; }
+  const c={mcq:0,tf:0,short:0}; bp.slots.forEach(s=>c[s.type]++);
+  out.innerHTML=`<div class="card"><div class="row between"><div><h2 style="margin:0">${esc(bp.name)}</h2><div class="small muted">${bp.slots.length} câu (TN ${c.mcq} · Đ/S ${c.tf} · TLN ${c.short}) · ${bp.minutes} phút</div></div><button class="btn" id="bpExp">Xuất JSON cấu trúc</button></div>
+    <table class="tbl mt"><tr><th>#</th><th>Câu</th><th>Dạng</th><th>Chủ đề</th><th>Mức độ</th><th>Nội dung</th></tr>
+    ${bp.slots.map((s,i)=>`<tr><td>${i+1}</td><td>${esc(s.no)}</td><td>${TYPE_SHORT[s.type]}</td><td>${s.topic?esc(topicName(s.topic)):'<i class="muted">bất kỳ</i>'}</td><td>${s.level?LEVELS[s.level]:'<i class="muted">bất kỳ</i>'}</td><td class="small muted">${esc(s.note||'')}</td></tr>`).join('')}</table>
+    <p class="hint">Có thể chỉnh lại từng dòng sau khi nhập vào trang V2P (mục Cấu trúc đề).</p></div>`;
+  $('#bpExp').onclick=async()=>{ const data=JSON.stringify(bp); try{ await navigator.clipboard.writeText(data); toast('Đã sao chép JSON cấu trúc — dán vào V2P: Cấu trúc đề → Nhập JSON'); }catch(e){ openModal(`<h3>JSON cấu trúc đề</h3><textarea style="min-height:200px;font-family:monospace;font-size:12px">${esc(data)}</textarea><div class="row end mt"><button class="btn" onclick="closeModal()">Đóng</button></div>`); } };
 }
 
 init();

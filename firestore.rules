@@ -17,7 +17,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Cấu hình (chủ đề tự thêm, phiên bản ngân hàng)
+    // Hình vẽ của câu hỏi (đề + lời giải), lưu riêng để ngân hàng tải nhanh
+    match /bankimg/{qid} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Cấu hình (chủ đề tự thêm, phiên bản ngân hàng, cấu trúc đề)
     match /config/{cid} {
       allow read: if signedIn();
       allow write: if isAdmin();
