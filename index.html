@@ -988,7 +988,7 @@ function renderBank(){
   const view=f.slice(BSTATE.page*per,(BSTATE.page+1)*per);
   box.innerHTML=`
   <div class="row between mb"><div class="seg" id="bGrade">${[10,11,12].map(g=>`<button data-g="${g}" class="${BSTATE.grade===g?'on':''}">Lớp ${g}</button>`).join('')}</div>
-    <div class="row"><button class="btn" id="addQ">+ Thêm câu hỏi</button><button class="btn ghost" id="impQ">Nhập JSON</button><button class="btn ghost" id="expQ">Xuất JSON</button><button class="btn ghost" id="addTopic">+ Chủ đề</button></div></div>
+    <div class="row"><button class="btn" id="addQ">+ Thêm câu hỏi</button><button class="btn ghost" id="impQ">Nhập JSON</button><button class="btn ghost" id="dupScan">Tìm câu trùng</button><button class="btn ghost" id="expQ">Xuất JSON</button><button class="btn ghost" id="addTopic">+ Chủ đề</button></div></div>
   <div class="card" style="overflow:auto"><h3>Số câu theo chủ đề — Lớp ${BSTATE.grade} (tổng ${bank.length})</h3>
     <table class="tbl matrix"><tr><th>Chủ đề</th><th class="num">TN</th><th class="num">Đ/S</th><th class="num">TLN</th><th class="num">Tổng</th></tr>
     ${topics.map(t=>{const c=cnt[t.key]||{mcq:0,tf:0,short:0}; const tot=c.mcq+c.tf+c.short; return `<tr class="click" data-t="${t.key}"><td>${esc(t.name)}${t.custom?' <span class="chip">tự thêm</span>':''}</td><td class="num">${c.mcq||'<span class="muted">0</span>'}</td><td class="num">${c.tf||'<span class="muted">0</span>'}</td><td class="num">${c.short||'<span class="muted">0</span>'}</td><td class="num"><b>${tot}</b></td></tr>`;}).join('')}</table>
@@ -1013,6 +1013,7 @@ function renderBank(){
   $$('[data-ed]').forEach(b=>b.onclick=async()=>{ const q=JSON.parse(JSON.stringify(bank.find(x=>x.id===b.dataset.ed))); if (q.hasImg||q.hasSolImg){ await loadImgs([q.id]); const c=S.imgCache[q.id]||{}; if(c.q) q.img=c.q; if(c.s) q.solImg=c.s; } editorModal(q, ()=>renderBank()); });
   $$('[data-del]').forEach(b=>b.onclick=async()=>{ if(!await ask('Xóa câu hỏi này khỏi ngân hàng? (Bài làm cũ của học sinh vẫn giữ nội dung câu)','Xóa')) return; try{ await withRetry(()=>S.db.doc('bank/'+b.dataset.del).delete()); if(MODE==='github'){ try{ await S.db.doc('bankimg/'+b.dataset.del).delete(); }catch(_){} } await bumpBank([BSTATE.grade]); S.bank[BSTATE.grade]=bank.filter(x=>x.id!==b.dataset.del); toast('Đã xóa'); renderBank(); }catch(e){ toast(errMsg(e)); } });
   $('#impQ').onclick=importModal;
+  $('#dupScan').onclick=scanDuplicates;
   $('#expQ').onclick=()=>{ const data=JSON.stringify(f.map(q=>{const o={...q}; delete o.k; return o;}),null,1); openModal(`<h3>Xuất ${f.length} câu (theo bộ lọc hiện tại)</h3><textarea style="min-height:300px;font-family:monospace;font-size:12px" id="expTa">${esc(data)}</textarea><div class="row end mt"><button class="btn ghost" id="cpExp">Sao chép</button><button class="btn" onclick="closeModal()">Đóng</button></div>`,true); $('#cpExp').onclick=async()=>{ try{await navigator.clipboard.writeText(data);toast('Đã sao chép');}catch(e){ $('#expTa').select(); } }; };
   $('#addTopic').onclick=topicModal;
 }
@@ -1081,6 +1082,8 @@ function editorModal(q, after, opts={}){
     const o=read(); const err=validateQ(cleanQ(o)); if(err){ $('#eErr').textContent=err; return; }
     if (opts.onSave){ opts.onSave(o); closeModal(); return; }
     $('#eSave').disabled=true; $('#eErr').textContent='';
+    if (!o.id && !o._dupOk){ try{ const d=findDup({...o}, await allBank()); if(d){ $('#eErr').innerHTML=`${d.score>=DUP_EXACT?'Câu này đã có trong ngân hàng':'Có câu giống '+Math.round(d.score*100)+'% trong ngân hàng'}: "${esc(snip(d.q.stem,80))}". Bấm Lưu lần nữa nếu vẫn muốn thêm.`; q._dupOk=true; $('#eSave').disabled=false; return; } }catch(e){} }
+    delete o._dupOk;
     try{ await saveQuestion(o); closeModal(); toast('Đã lưu câu hỏi'); after&&after(); }catch(e){ $('#eErr').textContent=errMsg(e); $('#eSave').disabled=false; }
   };
 }
@@ -1098,14 +1101,131 @@ function importModal(){
     await saveMany(arr.map(o=>({...o, src:o.src||'import', id:undefined})), $('#impMsg'), $('#impGo'));
   };
 }
+/* ===================== Phát hiện câu hỏi trùng lặp ===================== */
+// Chuẩn hóa nội dung: bỏ dấu, bỏ khoảng trắng/ký hiệu LaTeX trình bày, chỉ giữ chữ và số
+function normText(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d')
+    .replace(/\\(dfrac|tfrac)/g,'\\frac').replace(/\\(left|right|displaystyle|limits|quad|qquad|text|mathrm)\b/g,' ')
+    .replace(/\\[,;:! ]/g,' ').replace(/\{,\}/g,',').replace(/\[v2p\]/g,' ')
+    .replace(/^\s*cau\s*\d+\s*[.:)]?/,'').replace(/[^a-z0-9]+/g,' ').trim();
+}
+function qSig(q){ return normText(q.stem)+' || '+(q.options||q.statements||[]).map(normText).join(' | '); }
+function sigTokens(s){ const m=new Map(); s.split(' ').forEach(w=>{ if(w) m.set(w,(m.get(w)||0)+1); }); return m; }
+function sigSim(a,b){ // Jaccard trên đa tập từ, có tính cả số → câu chỉ khác số liệu sẽ có độ giống thấp hơn
+  const A=sigTokens(a), B=sigTokens(b); let inter=0, uni=0;
+  new Set([...A.keys(),...B.keys()]).forEach(k=>{ const x=A.get(k)||0, y=B.get(k)||0; inter+=Math.min(x,y); uni+=Math.max(x,y); });
+  return uni? inter/uni : 0;
+}
+const DUP_EXACT=0.999, DUP_NEAR=0.9;
+function findDup(q, pool, skipId){
+  const s=q._sig||qSig(q); let best=null, bs=0;
+  for (const p of pool){
+    if (!p || p===q || (skipId && p.id===skipId) || p.type!==q.type) continue;
+    const ps=p._sig||(p._sig=qSig(p));
+    if (ps===s) return {q:p, score:1};
+    if (Math.abs(ps.length-s.length) > 0.25*Math.max(ps.length,s.length)) continue;
+    const sc=sigSim(s,ps); if (sc>bs){ bs=sc; best=p; }
+  }
+  return bs>=DUP_NEAR ? {q:best, score:bs} : null;
+}
+async function allBank(){ const out=[]; for (const g of [10,11,12]){ try{ (await loadBank(g)).forEach(q=>out.push(q)); }catch(e){} } return out; }
+function snip(s,n=160){ const t=String(s||'').replace(/\s+/g,' '); return t.length>n? t.slice(0,n)+'…' : t; }
+
+// Nhập nhiều câu: kiểm tra trùng với ngân hàng và trùng trong chính lô nhập, cho giáo viên chọn cách xử lý
 async function saveMany(arr, msgEl, btn){
   const bad=[]; arr.forEach((o,i)=>{ const e=validateQ(cleanQ(o)); if(e) bad.push(`Câu ${i+1}: ${e}`); });
   if (bad.length){ msgEl.innerHTML=`<span style="color:var(--bad)">${esc(bad.slice(0,3).join('; '))}${bad.length>3?'…':''}</span>`; return false; }
-  if (btn) btn.disabled=true; let ok=0;
-  for (const o of arr){ try{ await saveQuestion(o); ok++; msgEl.textContent=`Đã lưu ${ok}/${arr.length}…`; }catch(e){ msgEl.textContent=`Dừng ở câu ${ok+1}: ${errMsg(e)}`; if(btn) btn.disabled=false; return false; } }
-  closeModal(); toast(`Đã thêm ${ok} câu vào ngân hàng`); if (S.view==='ngan-hang') renderBank();
+  msgEl.textContent='Đang kiểm tra câu trùng…';
+  const bank=await allBank();
+  const items=arr.map((o,i)=>{ const q={...o}; q._sig=qSig(q); return {i, q, dup:null, action:'add'}; });
+  const seen=[];
+  for (const it of items){
+    let d=findDup(it.q, bank);
+    if (d) it.dup={...d, where:'bank'};
+    else { const d2=findDup(it.q, seen); if (d2) it.dup={...d2, where:'batch'}; }
+    if (it.dup) it.action = it.dup.where==='batch' ? 'skip' : (it.dup.score>=DUP_EXACT ? 'skip' : 'add');
+    seen.push(it.q);
+  }
+  const dups=items.filter(it=>it.dup);
+  if (dups.length){
+    const choice=await dupReview(items, dups);
+    if (!choice) { msgEl.textContent='Đã hủy nhập.'; return false; }
+  }
+  if (btn) btn.disabled=true;
+  let added=0, replaced=0, skipped=0, n=0; const todo=items.filter(it=>it.action!=='skip'); skipped=items.length-todo.length;
+  for (const it of todo){
+    const q={...it.q}; delete q._sig;
+    try{
+      if (it.action==='replace' && it.dup && it.dup.where==='bank'){
+        const old=it.dup.q; q.id=old.id; q.createdAt=old.createdAt; q.hasImg=old.hasImg; q.hasSolImg=old.hasSolImg;
+        if ((old.hasImg&&!q.img) || (old.hasSolImg&&!q.solImg)){ await loadImgs([old.id]); const c=S.imgCache[old.id]||{}; if(!q.img&&c.q) q.img=c.q; if(!q.solImg&&c.s) q.solImg=c.s; }
+        await saveQuestion(q); replaced++;
+      } else { delete q.id; await saveQuestion(q); added++; }
+      n++; msgEl.textContent=`Đang lưu ${n}/${todo.length}…`;
+    }catch(e){ msgEl.textContent=`Dừng ở câu ${it.i+1}: ${errMsg(e)}`; if(btn) btn.disabled=false; return false; }
+  }
+  closeModal();
+  toast(`Đã thêm ${added} câu${replaced?`, thay thế ${replaced} câu cũ`:''}${skipped?`, bỏ qua ${skipped} câu trùng`:''}.`, 4500);
+  if (S.view==='ngan-hang') renderBank();
   return true;
 }
+function dupReview(items, dups){
+  return new Promise(res=>{
+    const act=(it)=>`<select data-act="${it.i}" style="width:auto">
+      <option value="skip" ${it.action==='skip'?'selected':''}>Bỏ qua câu mới</option>
+      <option value="add" ${it.action==='add'?'selected':''}>Vẫn thêm (2 câu khác nhau)</option>
+      ${it.dup.where==='bank'?`<option value="replace" ${it.action==='replace'?'selected':''}>Thay câu cũ bằng câu mới</option>`:''}</select>`;
+    openModal(`<h2>Phát hiện ${dups.length} câu có thể bị trùng</h2>
+      <p class="small muted">Trùng hoàn toàn (100%) mặc định <b>bỏ qua</b>. Gần giống (≥ 90%, thường chỉ khác số liệu hoặc cách viết) mặc định <b>vẫn thêm</b> — thầy/cô xem lại và chọn. "Thay câu cũ" giữ nguyên mã câu nên lịch sử làm bài của học sinh vẫn còn; hình vẽ cũ được giữ nếu câu mới không có hình.</p>
+      <div class="row mb"><button class="btn ghost sm" id="dupAllSkip">Bỏ qua tất cả câu trùng</button><button class="btn ghost sm" id="dupAllRep">Thay tất cả câu cũ</button><button class="btn ghost sm" id="dupAllAdd">Vẫn thêm tất cả</button></div>
+      <div style="max-height:58vh;overflow:auto">${dups.map(it=>`<div class="card mb" style="box-shadow:none;padding:12px">
+        <div class="row between"><div class="row"><b>Câu ${it.i+1}</b><span class="chip ${it.dup.score>=DUP_EXACT?'bad':'warn'}">${it.dup.score>=DUP_EXACT?'Trùng 100%':'Giống '+Math.round(it.dup.score*100)+'%'}</span><span class="chip">${it.dup.where==='bank'?'với câu đã có trong ngân hàng':'với một câu khác trong file này'}</span></div>${act(it)}</div>
+        <div class="grid g2 mt small"><div><div class="muted">Câu mới:</div><div class="prev" style="padding:8px">${rich(snip(it.q.stem,260))}</div></div><div><div class="muted">${it.dup.where==='bank'?`Câu đã có (${esc(topicName(it.dup.q.topic))}):`:'Câu trùng trong file:'}</div><div class="prev" style="padding:8px">${rich(snip(it.dup.q.stem,260))}</div></div></div></div>`).join('')}</div>
+      <div class="row end mt"><button class="btn ghost" id="dupCancel">Hủy nhập</button><button class="btn" id="dupOk">Tiếp tục nhập</button></div>`, true);
+    const sync=()=>$$('[data-act]').forEach(s=>{ const it=items.find(x=>x.i===+s.dataset.act); it.action=s.value; });
+    $$('[data-act]').forEach(s=>s.onchange=sync);
+    const setAll=v=>{ $$('[data-act]').forEach(s=>{ if([...s.options].some(o=>o.value===v)) s.value=v; else if(v==='replace') s.value='skip'; }); sync(); };
+    $('#dupAllSkip').onclick=()=>setAll('skip'); $('#dupAllRep').onclick=()=>setAll('replace'); $('#dupAllAdd').onclick=()=>setAll('add');
+    $('#dupCancel').onclick=()=>{ closeModal(); res(false); };
+    $('#dupOk').onclick=()=>{ sync(); res(true); };
+  });
+}
+
+// Quét toàn bộ ngân hàng tìm câu trùng
+async function scanDuplicates(){
+  openModal('<div class="empty"><span class="spin"></span> Đang quét ngân hàng câu hỏi…</div>', true);
+  const bank=await allBank(); bank.forEach(q=>{ q._sig=qSig(q); });
+  const groups={}; bank.forEach(q=>{ const k=q.type+'|'+q.topic; (groups[k]=groups[k]||[]).push(q); });
+  const exactMap={}; bank.forEach(q=>{ const k=q.type+'|'+q._sig; (exactMap[k]=exactMap[k]||[]).push(q); });
+  const pairs=[]; const seenPair=new Set();
+  Object.values(exactMap).forEach(list=>{ for(let i=1;i<list.length;i++){ pairs.push({a:list[0], b:list[i], score:1}); seenPair.add(list[0].id+'|'+list[i].id); } });
+  Object.values(groups).forEach(list=>{ for(let i=0;i<list.length;i++) for(let j=i+1;j<list.length;j++){ const a=list[i], b=list[j];
+    if (seenPair.has(a.id+'|'+b.id)||seenPair.has(b.id+'|'+a.id)||a._sig===b._sig) continue;
+    if (Math.abs(a._sig.length-b._sig.length) > 0.25*Math.max(a._sig.length,b._sig.length)) continue;
+    const s=sigSim(a._sig,b._sig); if (s>=DUP_NEAR) pairs.push({a,b,score:s}); } });
+  pairs.sort((x,y)=>y.score-x.score);
+  const removed=new Set();
+  const render=()=>{
+    const live=pairs.filter(p=>!removed.has(p.a.id)&&!removed.has(p.b.id));
+    $('#modalBox').innerHTML=`<div class="row between"><h2 style="margin:0">Câu hỏi trùng lặp trong ngân hàng</h2><button class="btn ghost sm" id="scClose">✕</button></div>
+      <p class="small muted">Đã quét ${bank.length} câu. ${live.length?`Tìm thấy <b>${live.length}</b> cặp trùng hoặc gần giống (≥ 90%). Câu gần giống có thể chỉ khác số liệu — hãy xem kỹ trước khi xóa.`:'Không phát hiện câu trùng nào. 🎉'}</p>
+      ${live.filter(p=>p.score>=DUP_EXACT).length?'<div class="row mb"><button class="btn danger sm" id="scAuto">Xóa tự động các bản trùng 100% (giữ câu cũ nhất)</button></div>':''}
+      <div style="max-height:62vh;overflow:auto">${live.map((p,k)=>`<div class="card mb" style="box-shadow:none;padding:12px"><div class="row"><span class="chip ${p.score>=DUP_EXACT?'bad':'warn'}">${p.score>=DUP_EXACT?'Trùng 100%':'Giống '+Math.round(p.score*100)+'%'}</span><span class="chip">${TYPE_SHORT[p.a.type]}</span><span class="chip">${esc(topicName(p.a.topic))}</span></div>
+        <div class="grid g2 mt small">${[p.a,p.b].map(q=>`<div><div class="prev" style="padding:8px">${rich(snip(q.stem,260))}</div><div class="row mt"><span class="muted">${q.createdAt?new Date(q.createdAt).toLocaleDateString('vi-VN'):''}${q.hasImg||q.img?' · có hình':''}${q.solution?'':' · chưa có lời giải'}</span><button class="btn danger sm" data-delq="${esc(q.id)}" style="margin-left:auto">Xóa câu này</button></div></div>`).join('')}</div></div>`).join('')}</div>`;
+    typeset($('#modalBox'));
+    $('#scClose').onclick=()=>{ closeModal(); if(S.view==='ngan-hang') renderBank(); };
+    const del=async(id)=>{ await withRetry(()=>S.db.doc('bank/'+id).delete()); if(MODE==='github'){ try{ await S.db.doc('bankimg/'+id).delete(); }catch(_){} } removed.add(id); const q=bank.find(x=>x.id===id); for(const g in S.bank) S.bank[g]=S.bank[g].filter(x=>x.id!==id); return q; };
+    $$('[data-delq]').forEach(b=>b.onclick=async()=>{ b.disabled=true; try{ const q=await del(b.dataset.delq); await bumpBank([q&&q.grade]); toast('Đã xóa'); render(); }catch(e){ toast(errMsg(e)); b.disabled=false; } });
+    if ($('#scAuto')) $('#scAuto').onclick=async()=>{
+      const ex=live.filter(p=>p.score>=DUP_EXACT); if(!await askInline(`Xóa ${ex.length} câu trùng 100%? Mỗi cặp giữ lại câu được tạo trước.`)) return;
+      const gs=new Set();
+      for (const p of ex){ const drop=(p.a.createdAt||0)<=(p.b.createdAt||0)?p.b:p.a; if(removed.has(drop.id)) continue; try{ await del(drop.id); gs.add(drop.grade); }catch(e){} }
+      await bumpBank([...gs]); toast('Đã xóa các câu trùng 100%'); render();
+    };
+  };
+  render();
+}
+function askInline(msg){ return new Promise(r=>{ const box=document.createElement('div'); box.className='banner'; box.innerHTML=`${msg} <button class="btn danger sm" data-y>Xóa</button> <button class="btn ghost sm" data-n>Hủy</button>`; const host=$('#modalBox'); host.prepend(box); box.querySelector('[data-y]').onclick=()=>{ box.remove(); r(true); }; box.querySelector('[data-n]').onclick=()=>{ box.remove(); r(false); }; }); }
 
 /* ===================== Cấu trúc đề (giáo viên khai báo) ===================== */
 S.blueprints = [];
