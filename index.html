@@ -1094,7 +1094,11 @@ async function vStudentDetail(id){
 }
 
 /* ===================== Giáo viên: ngân hàng ===================== */
-let BSTATE={grade:12, topic:'', type:'', level:'', q:'', page:0, kho:''};
+let BSTATE={grade:12, topic:'', type:'', level:'', q:'', page:0, kho:'', sel:new Set()};
+async function setKho(qs, to, grade){
+  let k=0; for (const q of qs){ if (qKho(q)===to) { k++; continue; } try{ await withRetry(()=>S.db.doc('bank/'+q.id).update({kho:to, updatedAt:Date.now()})); q.kho=to; q.updatedAt=Date.now(); k++; }catch(e){ toast(errMsg(e)); break; } }
+  if (k) await bumpBank([grade]); return k;
+}
 async function vBank(){
   const app=$('#app');
   app.innerHTML=`<h1>Ngân hàng câu hỏi</h1><p class="sub">Thêm, sửa, xóa và phân loại câu hỏi theo chủ đề. Học sinh thấy câu mới ngay khi lưu.</p><div id="bBox"><div class="empty"><span class="spin"></span></div></div>`;
@@ -1125,13 +1129,24 @@ function renderBank(){
     <select id="fLv" style="width:auto"><option value="">Mọi mức độ</option>${Object.entries(LEVELS).map(([k,v])=>`<option value="${k}" ${BSTATE.level===k?'selected':''}>${v}</option>`).join('')}</select>
     <input type="text" id="fQ" placeholder="Tìm trong đề/lời giải…" style="max-width:240px" value="${esc(BSTATE.q)}">
     <span class="muted small">${f.length} câu</span>${f.length?`<button class="btn ghost sm" id="moveKho">Chuyển ${f.length} câu đang lọc sang ${BSTATE.kho==='chuan'?'kho ôn tập':'kho đề chuẩn'}</button>`:''}</div>
-  <div id="bList">${view.length?view.map(q=>`<div class="q"><div class="qhead"><span class="chip pri">${TYPE_SHORT[q.type]}</span><span class="chip">${esc(topicName(q.topic))}</span><span class="chip">${LEVELS[q.level]||''}</span>${q.src==='ai'?'<span class="chip warn">AI</span>':''}${qKho(q)==='chuan'?'<span class="chip good">⭐ Đề chuẩn</span>':''}${q.gid?'<span class="chip">📄 đoạn văn</span>':''}<span style="margin-left:auto" class="row"><button class="btn ghost sm" data-ed="${q.id}">Sửa</button><button class="btn danger sm" data-del="${q.id}">Xóa</button></span></div>${previewHtml(q,true)}</div>`).join(''):'<div class="card empty">Không có câu hỏi phù hợp.</div>'}</div>
+  <div class="card row" id="selBar" style="position:sticky;top:104px;z-index:5;padding:10px 14px;gap:8px;flex-wrap:wrap;${BSTATE.sel.size?'border-color:var(--acc);background:#fffaf0':''}">
+    <button class="btn ghost sm" id="selPage">☑ Chọn cả trang này (${view.length})</button><button class="btn ghost sm" id="selFilt">Chọn tất cả ${f.length} câu đang lọc</button>
+    ${BSTATE.sel.size?`<b class="small">Đã chọn ${BSTATE.sel.size} câu</b><button class="btn acc sm" id="selChuan">⭐ Đưa vào Kho đề chuẩn</button><button class="btn ghost sm" id="selOn">Đưa về Kho ôn tập</button><button class="btn ghost sm" id="selClr">Bỏ chọn</button>`:'<span class="small muted">Tích ô ở đầu mỗi câu, hoặc bấm ☆ trên từng câu để đưa ngay vào Kho đề chuẩn.</span>'}</div>
+  <div id="bList">${view.length?view.map(q=>`<div class="q" ${BSTATE.sel.has(q.id)?'style="outline:2px solid var(--acc)"':''}><div class="qhead"><input type="checkbox" data-sel="${q.id}" ${BSTATE.sel.has(q.id)?'checked':''} style="width:18px;height:18px;cursor:pointer" title="Chọn câu này"><span class="chip pri">${TYPE_SHORT[q.type]}</span><span class="chip">${esc(topicName(q.topic))}</span><span class="chip">${LEVELS[q.level]||''}</span>${q.src==='ai'?'<span class="chip warn">AI</span>':''}${qKho(q)==='chuan'?'<span class="chip good">⭐ Đề chuẩn</span>':''}${q.gid?'<span class="chip">📄 đoạn văn</span>':''}<span style="margin-left:auto" class="row"><button class="btn ${qKho(q)==='chuan'?'acc':'ghost'} sm" data-star="${q.id}" title="${qKho(q)==='chuan'?'Đang ở Kho đề chuẩn — bấm để đưa về Kho ôn tập':'Bấm để đưa vào Kho đề chuẩn'}">${qKho(q)==='chuan'?'⭐ Đề chuẩn':'☆ Đề chuẩn'}</button><button class="btn ghost sm" data-ed="${q.id}">Sửa</button><button class="btn danger sm" data-del="${q.id}">Xóa</button></span></div>${previewHtml(q,true)}</div>`).join(''):'<div class="card empty">Không có câu hỏi phù hợp.</div>'}</div>
   <div class="row end">${pages>1?`<button class="btn ghost sm" id="pPrev" ${BSTATE.page?'':'disabled'}>‹ Trước</button><span class="small">Trang ${BSTATE.page+1}/${pages}</span><button class="btn ghost sm" id="pNext" ${BSTATE.page<pages-1?'':'disabled'}>Sau ›</button>`:''}</div>`;
   typeset($('#bList')); hydrateImgs($('#bList'));
   $$('#bGrade button').forEach(b=>b.onclick=async()=>{ BSTATE.grade=+b.dataset.g; BSTATE.topic=''; BSTATE.page=0; box.innerHTML='<div class="empty"><span class="spin"></span></div>'; try{ await loadBank(BSTATE.grade,true);}catch(e){} renderBank(); });
   $$('tr[data-t]').forEach(tr=>tr.onclick=()=>{ BSTATE.topic=tr.dataset.t; BSTATE.page=0; renderBank(); });
   $$('#bKho button').forEach(b=>b.onclick=()=>{ BSTATE.kho=b.dataset.k; BSTATE.page=0; renderBank(); });
-  if ($('#moveKho')) $('#moveKho').onclick=async()=>{ const to=BSTATE.kho==='chuan'?'on':'chuan'; if(!await ask(`Chuyển ${f.length} câu đang lọc sang <b>${KHO[to]}</b>?`,'Chuyển')) return; let k=0; for (const q of f){ try{ await withRetry(()=>S.db.doc('bank/'+q.id).update({kho:to, updatedAt:Date.now()})); q.kho=to; k++; }catch(e){ toast(errMsg(e)); break; } } await bumpBank([BSTATE.grade]); toast(`Đã chuyển ${k} câu sang ${KHO[to]}`); renderBank(); };
+  if ($('#moveKho')) $('#moveKho').onclick=async()=>{ const to=BSTATE.kho==='chuan'?'on':'chuan'; if(!await ask(`Chuyển ${f.length} câu đang lọc sang <b>${KHO[to]}</b>?`,'Chuyển')) return; const k=await setKho(f,to,BSTATE.grade); toast(`Đã chuyển ${k} câu sang ${KHO[to]}`); renderBank(); };
+  const keepY=()=>{ const y=window.scrollY; renderBank(); window.scrollTo(0,y); };
+  $$('[data-sel]').forEach(c=>c.onchange=()=>{ c.checked?BSTATE.sel.add(c.dataset.sel):BSTATE.sel.delete(c.dataset.sel); keepY(); });
+  $('#selPage').onclick=()=>{ view.forEach(q=>BSTATE.sel.add(q.id)); keepY(); };
+  $('#selFilt').onclick=()=>{ f.forEach(q=>BSTATE.sel.add(q.id)); keepY(); };
+  const selQs=()=>bankG.filter(q=>BSTATE.sel.has(q.id));
+  const doSel=async(to,btn)=>{ const qs=selQs(); if(!qs.length) return; btn.disabled=true; btn.textContent='Đang chuyển…'; const k=await setKho(qs,to,BSTATE.grade); toast(`Đã đưa ${k} câu vào ${KHO[to]}`); BSTATE.sel.clear(); keepY(); };
+  if ($('#selChuan')){ $('#selChuan').onclick=e=>doSel('chuan',e.target); $('#selOn').onclick=e=>doSel('on',e.target); $('#selClr').onclick=()=>{ BSTATE.sel.clear(); keepY(); }; }
+  $$('[data-star]').forEach(b=>b.onclick=async()=>{ const q=bankG.find(x=>x.id===b.dataset.star); if(!q) return; const to=qKho(q)==='chuan'?'on':'chuan'; b.disabled=true; const k=await setKho([q],to,BSTATE.grade); if(k) toast(to==='chuan'?'⭐ Đã đưa vào Kho đề chuẩn':'Đã đưa về Kho ôn tập'); keepY(); });
   $('#fTopic').onchange=e=>{BSTATE.topic=e.target.value;BSTATE.page=0;renderBank();};
   $('#fType').onchange=e=>{BSTATE.type=e.target.value;BSTATE.page=0;renderBank();};
   $('#fLv').onchange=e=>{BSTATE.level=e.target.value;BSTATE.page=0;renderBank();};
@@ -1222,10 +1237,11 @@ function editorModal(q, after, opts={}){
   };
 }
 function fileToDataURL(file,max=720){ /* đọc ảnh, thu nhỏ, nén JPEG */ return new Promise((res,rej)=>{ const img=new Image(); const url=URL.createObjectURL(file); img.onload=()=>{ const sc=Math.min(1,max/img.width); const c=document.createElement('canvas'); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc); const x=c.getContext('2d'); x.fillStyle='#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height); URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg',0.82)); }; img.onerror=()=>{URL.revokeObjectURL(url);rej();}; img.src=url; }); }
+function impKhoPref(){ try{ return localStorage.getItem('v2p-impkho')||'file'; }catch(e){ return 'file'; } }
 function importModal(){
   const ws=window.V2P_WORKSHOP_URL;
   openModal(`<h2>Nhập câu hỏi từ JSON</h2>${MODE==='github'?`<div class="banner">Để lấy câu hỏi từ <b>file PDF</b> hoặc nhờ <b>AI soạn câu mới</b>: mở ${ws?`<a href="${esc(ws)}" target="_blank" rel="noopener">Xưởng soạn câu hỏi V2P</a>`:'Xưởng soạn câu hỏi V2P trên claude.ai'}, duyệt câu rồi bấm "Xuất JSON" và dán vào ô dưới đây.</div>`:''}<p class="small muted">Dán một mảng JSON. Mỗi câu gồm: type (mcq/tf/short), grade, topic (mã chủ đề), level (NB/TH/VD/VDC), stem, options[4] + answer 0–3 (mcq), statements[4] + answer [true/false ×4] (tf), answer chuỗi (short), solution.</p>
-   <div class="row mb"><b class="small">Nhập vào:</b>${Object.entries(KHO).map(([k,v])=>`<label class="chip" style="cursor:pointer;padding:5px 10px"><input type="radio" name="impKho" value="${k}" ${k==='on'?'checked':''}> ${k==='chuan'?'⭐ ':''}${v}</label>`).join('')}<label class="chip" style="cursor:pointer;padding:5px 10px"><input type="radio" name="impKho" value="file"> Theo file</label></div>
+   <div class="row mb"><b class="small">Nhập vào:</b>${Object.entries(KHO).map(([k,v])=>`<label class="chip" style="cursor:pointer;padding:5px 10px"><input type="radio" name="impKho" value="${k}" ${impKhoPref()===k?'checked':''}> Tất cả vào ${k==='chuan'?'⭐ ':''}${v}</label>`).join('')}<label class="chip" style="cursor:pointer;padding:5px 10px"><input type="radio" name="impKho" value="file" ${impKhoPref()==='file'?'checked':''}> Theo đánh dấu trong file (câu ⭐ vào Kho đề chuẩn, còn lại vào Kho ôn tập)</label></div>
    <div class="row mb"><label class="small"><b>Chọn file JSON:</b></label><input type="file" id="impFile" accept=".json,application/json,text/plain" style="flex:1"></div>
    <textarea id="impTa" style="min-height:260px;font-family:monospace;font-size:12px" placeholder='[{"type":"mcq","grade":12,"topic":"12-tichphan","level":"NB","stem":"...","options":["..","..","..",".."],"answer":0,"solution":"..."}]'></textarea>
    <details class="mt small"><summary style="cursor:pointer">Danh sách mã chủ đề (${esc(SUBJECTS[S.subj].name)})</summary><div style="max-height:200px;overflow:auto">${[10,11,12].map(g=>allTopics(g).map(t=>`<div><code>${t.key}</code> — ${esc(t.name)}</div>`).join('')).join('')}</div></details>
@@ -1233,7 +1249,7 @@ function importModal(){
   $('#impFile').onchange=async()=>{ const f=$('#impFile').files[0]; if(!f) return; try{ const t=await f.text(); $('#impTa').value=t; let n='?'; try{ const a=JSON.parse(t); n=Array.isArray(a)?a.length:1; }catch(e){} $('#impMsg').textContent=`Đã đọc file ${f.name}: ${n} câu. Bấm Nhập để lưu.`; }catch(e){ $('#impMsg').textContent='Không đọc được file'; } };
   $('#impGo').onclick=async()=>{
     let arr; try{ arr=JSON.parse($('#impTa').value); if(!Array.isArray(arr)) arr=[arr]; }catch(e){ $('#impMsg').textContent='JSON không hợp lệ'; return; }
-    const kho=($('input[name=impKho]:checked')||{}).value||'on';
+    const kho=($('input[name=impKho]:checked')||{}).value||'file'; try{ localStorage.setItem('v2p-impkho', kho); }catch(e){}
     await saveMany(arr.map(o=>({...o, src:o.src||'import', id:undefined, kho: kho==='file'?(o.kho||'on'):kho, subject: SUBJECTS[o.subject]?o.subject:topicSubject(o.topic)})), $('#impMsg'), $('#impGo'));
   };
 }
@@ -1781,6 +1797,7 @@ function fillPassages(list){
 }
 function normDraft(o, defaults){
   const q={...(defaults||{}), ...o, src:'ai'};
+  if (!q.kho){ try{ q.kho=localStorage.getItem('v2p-ws-kho')||'on'; }catch(e){ q.kho='on'; } }
   if(defaults){ q.grade=defaults.grade; q.topic=q.topic||defaults.topic; }
   q.grade=+q.grade||topicGrade(q.topic)||12;
   q.subject=(q.topic && topicSubject(q.topic)!=='toan') ? topicSubject(q.topic) : (S.subj||'toan');
@@ -1981,9 +1998,9 @@ function exportDrafts(){
   if (!pick.length){ toast('Chưa chọn câu nào'); return; }
   const bad=pick.filter(q=>validateQ(q)).length;
   const data=JSON.stringify(pick);
-  const nImg=pick.filter(q=>q.img||q.solImg).length;
-  openModal(`<h2>Xuất ${pick.length} câu hỏi</h2>${bad?`<div class="banner">Có ${bad} câu còn thiếu thông tin — trang V2P sẽ báo lỗi khi nhập. Hãy sửa hoặc bỏ chọn.</div>`:''}
-    <p class="small">Bấm <b>Sao chép</b>, mở trang <b>V2P Education → Ngân hàng câu hỏi → Nhập JSON</b> rồi dán vào và bấm Nhập.${nImg?` Có ${nImg} câu kèm hình vẽ (đã nằm sẵn trong dữ liệu).`:''}</p>
+  const nImg=pick.filter(q=>q.img||q.solImg).length; const nCh=pick.filter(q=>q.kho==='chuan').length;
+  openModal(`<h2>Xuất ${pick.length} câu hỏi <span class="small muted">(⭐ Kho đề chuẩn: ${nCh} · Kho ôn tập: ${pick.length-nCh})</span></h2>${bad?`<div class="banner">Có ${bad} câu còn thiếu thông tin — trang V2P sẽ báo lỗi khi nhập. Hãy sửa hoặc bỏ chọn.</div>`:''}
+    <p class="small">Bấm <b>Sao chép</b>, mở trang <b>V2P Education → Ngân hàng câu hỏi → Nhập JSON</b> rồi dán vào và bấm Nhập. Câu nào được đánh dấu ⭐ sẽ tự vào <b>Kho đề chuẩn</b> (giữ lựa chọn mặc định "Theo đánh dấu trong file").${nImg?` Có ${nImg} câu kèm hình vẽ (đã nằm sẵn trong dữ liệu).`:''}</p>
     <textarea id="expTa" style="min-height:220px;font-family:monospace;font-size:12px" readonly>${esc(data.length>200000?data.slice(0,2000)+'\n… (dữ liệu dài, hãy dùng nút Sao chép)':data)}</textarea>
     <div class="row end mt"><button class="btn ghost" id="expDone">Đã nhập xong — xóa các câu này khỏi xưởng</button><button class="btn" id="cpExp">Sao chép</button></div>`, true);
   $('#cpExp').onclick=async()=>{ try{ await navigator.clipboard.writeText(data); toast('Đã sao chép JSON'); }catch(e){ const t=$('#expTa'); t.value=data; t.focus(); t.select(); toast('Nhấn Ctrl+C để sao chép'); } };
@@ -1994,14 +2011,17 @@ function renderDrafts(){
   if (ASTATE.tab==='bp') return;
   const D=S.aiDrafts||[]; if(!D.length){ out.innerHTML=''; return; }
   const on=D.filter(d=>d.on).length;
-  out.innerHTML=`<div class="row between mb"><h2 style="margin:0">Duyệt ${D.length} câu do AI soạn</h2><div class="row"><button class="btn ghost sm" id="dClear">Bỏ tất cả</button><button class="btn" id="dSave">${MODE==='workshop'?`Xuất JSON ${on} câu đã chọn`:`Lưu ${on} câu đã chọn vào ngân hàng`}</button></div></div>
+  out.innerHTML=`<div class="row between mb"><h2 style="margin:0">Duyệt ${D.length} câu do AI soạn</h2><div class="row"><span class="small"><b>Đưa các câu đã chọn vào:</b></span><button class="btn acc sm" id="dAllCh">⭐ Kho đề chuẩn</button><button class="btn ghost sm" id="dAllOn">Kho ôn tập</button><span class="sep"></span><button class="btn ghost sm" id="dClear">Bỏ tất cả</button><button class="btn" id="dSave">${MODE==='workshop'?`Xuất JSON ${on} câu đã chọn`:`Lưu ${on} câu đã chọn vào ngân hàng`}</button></div></div>
   <div class="banner">⚠️ AI có thể nhầm đáp án hoặc cắt hình chưa chuẩn. Thầy/cô kiểm tra lời giải, bấm <b>Sửa</b> hoặc <b>✂️ Cắt hình</b> nếu cần trước khi lưu. Câu bị bỏ chọn sẽ không được lưu.</div>
   <div id="dMsg" class="small mb"></div>
   ${D.map((d,i)=>{ const err=validateQ(cleanQ(d.q)); const canCrop=(d.q._pages||[]).some(k=>PAGES[k]); const figNeed=(d.q.fig&&!d.q.img)||(d.q.solFig&&!d.q.solImg);
-    return `<div class="ai-card ${d.on?'':'off'}"><div class="qhead"><label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" data-on="${i}" ${d.on?'checked':''}> <b>Câu ${i+1}</b></label><span class="chip pri">${TYPE_SHORT[d.q.type]||d.q.type}</span><span class="chip">Lớp ${d.q.grade}</span><span class="chip">${esc(topicName(d.q.topic))}</span><span class="chip">${LEVELS[d.q.level]||d.q.level}</span>${d.q.srcNote?`<span class="chip warn">PDF ${esc(d.q.srcNote)}</span>`:''}${d.q.img||d.q.solImg?'<span class="chip good">🖼 có hình</span>':''}${figNeed?'<span class="chip bad">cần cắt lại hình</span>':''}${err?`<span class="chip bad">${esc(err)}</span>`:''}<span style="margin-left:auto" class="row"><button class="btn ghost sm" data-crop="${i}" title="Cắt lại hình cho đề bài từ trang đề">✂️ Hình đề</button><button class="btn ghost sm" data-scrop="${i}" title="Cắt lại hình cho lời giải từ file hướng dẫn giải">✂️ Hình lời giải</button><button class="btn ghost sm" data-edd="${i}">Sửa</button><button class="btn danger sm" data-rmd="${i}" title="Xóa câu này khỏi danh sách duyệt">✕</button></span></div>${previewHtml(d.q,true)}</div>`; }).join('')}`;
+    return `<div class="ai-card ${d.on?'':'off'}"><div class="qhead"><label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" data-on="${i}" ${d.on?'checked':''}> <b>Câu ${i+1}</b></label><span class="chip pri">${TYPE_SHORT[d.q.type]||d.q.type}</span><span class="chip">Lớp ${d.q.grade}</span><span class="chip">${esc(topicName(d.q.topic))}</span><span class="chip">${LEVELS[d.q.level]||d.q.level}</span><button class="btn ${qKho(d.q)==='chuan'?'acc':'ghost'} sm" data-dstar="${i}" title="Bấm để đổi kho">${qKho(d.q)==='chuan'?'⭐ Kho đề chuẩn':'☆ Kho ôn tập'}</button>${d.q.srcNote?`<span class="chip warn">PDF ${esc(d.q.srcNote)}</span>`:''}${d.q.img||d.q.solImg?'<span class="chip good">🖼 có hình</span>':''}${figNeed?'<span class="chip bad">cần cắt lại hình</span>':''}${err?`<span class="chip bad">${esc(err)}</span>`:''}<span style="margin-left:auto" class="row"><button class="btn ghost sm" data-crop="${i}" title="Cắt lại hình cho đề bài từ trang đề">✂️ Hình đề</button><button class="btn ghost sm" data-scrop="${i}" title="Cắt lại hình cho lời giải từ file hướng dẫn giải">✂️ Hình lời giải</button><button class="btn ghost sm" data-edd="${i}">Sửa</button><button class="btn danger sm" data-rmd="${i}" title="Xóa câu này khỏi danh sách duyệt">✕</button></span></div>${previewHtml(d.q,true)}</div>`; }).join('')}`;
   typeset(out);
   $$('[data-on]').forEach(c=>c.onchange=()=>{ D[+c.dataset.on].on=c.checked; renderDrafts(); });
   $$('[data-rmd]').forEach(b=>b.onclick=()=>{ D.splice(+b.dataset.rmd,1); renderDrafts(); });
+  $$('[data-dstar]').forEach(b=>b.onclick=()=>{ const q=D[+b.dataset.dstar].q; q.kho=qKho(q)==='chuan'?'on':'chuan'; const y=window.scrollY; renderDrafts(); window.scrollTo(0,y); });
+  const allK=(to)=>{ let n=0; D.forEach(d=>{ if(d.on){ d.q.kho=to; n++; } }); try{ localStorage.setItem('v2p-ws-kho', to); }catch(e){} renderDrafts(); toast(`${n} câu đã chọn → ${KHO[to]}`); };
+  $('#dAllCh').onclick=()=>allK('chuan'); $('#dAllOn').onclick=()=>allK('on');
   $$('[data-crop]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.crop; cropTool(D[i].q, ()=>renderDrafts(), 'q'); });
   $$('[data-scrop]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.scrop; cropTool(D[i].q, ()=>renderDrafts(), 's'); });
   $$('[data-edd]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.edd; const copy=JSON.parse(JSON.stringify(D[i].q));
