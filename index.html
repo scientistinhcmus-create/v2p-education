@@ -667,8 +667,10 @@ async function vSetup(){
       <p class="hint">Kho đề chuẩn: ${nChuan} câu do thầy/cô chọn lọc để luyện đề thi. Kho ôn tập: ${bankAll.length-nChuan} câu ôn kiến thức.</p>
     </div>
     <div class="card">
-      <h2>4. Mức độ & cách chọn câu</h2>
-      <div class="row" id="lvls">${Object.entries(LEVELS).map(([k,v])=>`<label class="chip" style="cursor:pointer;padding:5px 10px"><input type="checkbox" value="${k}" ${st.levels.includes(k)?'checked':''}> ${v}</label>`).join('')}</div>
+      <h2>4. Mức độ cho từng phần</h2>
+      <div class="seg" id="lvMode"><button data-m="chon" class="${st.lvMode!=='so'?'on':''}">Chọn mức độ</button><button data-m="so" class="${st.lvMode==='so'?'on':''}">Đặt số câu từng mức</button></div>
+      <div id="lvBox" class="mt"></div>
+      <div class="row mt" style="gap:6px"><button class="btn ghost sm" id="lvSug" title="TN: nhận biết–thông hiểu · Đ/S: thông hiểu–vận dụng · TLN: vận dụng–vận dụng cao">✨ Gợi ý giống đề thi</button><button class="btn ghost sm" id="lvAll">Lấy mọi mức độ</button></div>
       <label class="row mt" style="cursor:pointer;align-items:flex-start"><input type="checkbox" id="adapt" ${st.adaptive?'checked':''} style="margin-top:5px">
         <div><b>Ưu tiên câu và chủ đề mình hay làm sai</b><div class="hint">Hệ thống dựa vào lịch sử làm bài để chọn nhiều hơn các câu chưa làm, từng làm sai và các chủ đề còn yếu.</div></div></label>
       <div class="mt" id="availNote"></div>
@@ -685,22 +687,45 @@ async function vSetup(){
   $('#selNone').onclick=()=>{ $$('#topicList input').forEach(i=>i.checked=false); syncTopics(); };
   if ($('#selWeak')) $('#selWeak').onclick=()=>{ const weak=topics.filter(t=>{const m=myT[t.key]; return m&&m.n>=3&&m.s/m.n<0.7;}).map(t=>t.key); if(!weak.length){toast('Chưa có chủ đề yếu ở lớp này (cần ≥3 câu đã làm, đúng < 70%)');return;} $$('#topicList input').forEach(i=>i.checked=weak.includes(i.value)&&!i.disabled); syncTopics(); };
   ['cMcq','cTf','cShort','cMin'].forEach(id=>$('#'+id).onchange=()=>{ st.counts={mcq:+$('#cMcq').value||0,tf:+$('#cTf').value||0,short:+$('#cShort').value||0}; st.minutes=+$('#cMin').value; persistSetup(); updAvail(); });
-  $$('#lvls input').forEach(i=>i.onchange=()=>{ st.levels=$$('#lvls input:checked').map(x=>x.value); persistSetup(); updAvail(); });
+  const LVK=['NB','TH','VD','VDC'];
+  const typesOn=()=>{ const all=S.subj==='anh'?['mcq']:['mcq','tf','short']; if (st.lvMode==='so') return all.filter(t=>st.preset==='tuychon' || (PR.chuan[t]||0)>0); const w=baseWant(); return all.filter(t=>(w[t]||0)>0); };
+  const SUG={ mcq:{NB:0.6,TH:0.4}, tf:{TH:0.5,VD:0.5}, short:{VD:0.5,VDC:0.5} };
+  const spread=(t,n)=>{ const r=SUG[t], o={NB:0,TH:0,VD:0,VDC:0}; let left=n; const ks=Object.keys(r); ks.forEach(k=>{ o[k]=Math.floor(n*r[k]); left-=o[k]; }); for(let i=0;left>0;i=(i+1)%ks.length){ o[ks[i]]++; left--; } return o; };
+  const fillCnt=()=>{ const w=baseWant(); st.lvCnt={}; ['mcq','tf','short'].forEach(t=>{ st.lvCnt[t]=spread(t, w[t]||0); }); };
+  if (!st.lv){ const L=(st.levels&&st.levels.length)?st.levels:LVK; st.lv={mcq:[...L], tf:[...L], short:[...L]}; }
+  if (!st.lvCnt) fillCnt();
+  function renderLv(){
+    const pl=pool(); const av={}; pl.forEach(q=>{ const a=av[q.type]||(av[q.type]={}); a[q.level]=(a[q.level]||0)+1; });
+    const rows=typesOn(); const so=st.lvMode==='so';
+    $('#lvBox').innerHTML = !rows.length ? '<div class="small muted">Chưa có phần nào trong đề.</div>' : `<table class="tbl lvtbl"><tr><th>Phần</th>${LVK.map(k=>`<th style="text-align:center">${LEVELS[k]}</th>`).join('')}${so?'<th style="text-align:center">Tổng</th>':''}</tr>
+      ${rows.map(t=>{ const a=av[t]||{}; return `<tr><td><b>${TYPE_SHORT[t]}</b></td>${LVK.map(k=>so
+        ? `<td style="text-align:center"><input type="number" min="0" max="40" data-lt="${t}" data-ll="${k}" value="${(st.lvCnt[t]||{})[k]||0}" style="width:58px;padding:5px;text-align:center"><div class="small ${((st.lvCnt[t]||{})[k]||0)>(a[k]||0)?'':'muted'}" style="${((st.lvCnt[t]||{})[k]||0)>(a[k]||0)?'color:var(--warn)':''}">có ${a[k]||0}</div></td>`
+        : `<td style="text-align:center"><label style="cursor:pointer;display:block"><input type="checkbox" data-lt="${t}" data-ll="${k}" ${(st.lv[t]||[]).includes(k)?'checked':''}><div class="small muted">${a[k]||0} câu</div></label></td>`).join('')}${so?`<td style="text-align:center"><b>${LVK.reduce((s,k)=>s+(+((st.lvCnt[t]||{})[k])||0),0)}</b></td>`:''}</tr>`; }).join('')}</table>
+      <p class="hint">${so?'Đề sẽ lấy đúng số câu của từng mức độ trong từng phần (thiếu thì lấy câu ở mức độ gần nhất). Tổng số câu ở đây thay cho số câu ở mục 3.':'Mỗi phần chỉ lấy câu ở các mức độ được đánh dấu. Số dưới ô là số câu đang có (theo chủ đề đã chọn).'} Trong mỗi phần, câu được xếp từ dễ đến khó.</p>`;
+    $$('#lvBox input[type=checkbox]').forEach(i=>i.onchange=()=>{ const t=i.dataset.lt; st.lv[t]=LVK.filter(k=>$(`#lvBox input[data-lt="${t}"][data-ll="${k}"]`).checked); persistSetup(); updAvail(); });
+    $$('#lvBox input[type=number]').forEach(i=>i.onchange=()=>{ const t=i.dataset.lt; st.lvCnt[t]=st.lvCnt[t]||{}; st.lvCnt[t][i.dataset.ll]=Math.max(0,+i.value||0); persistSetup(); updAvail(); });
+  }
+  $$('#lvMode button').forEach(b=>b.onclick=()=>{ st.lvMode=b.dataset.m; if (st.lvMode==='so') fillCnt(); persistSetup(); $$('#lvMode button').forEach(x=>x.classList.toggle('on', x===b)); updAvail(); });
+  $('#lvSug').onclick=()=>{ if (st.lvMode==='so') fillCnt(); else st.lv={ mcq:['NB','TH'], tf:['TH','VD'], short:['VD','VDC'] }; persistSetup(); updAvail(); toast('Đã áp dụng gợi ý mức độ giống đề thi'); };
+  $('#lvAll').onclick=()=>{ st.lvMode='chon'; st.lv={mcq:[...LVK], tf:[...LVK], short:[...LVK]}; persistSetup(); $$('#lvMode button').forEach(x=>x.classList.toggle('on', x.dataset.m==='chon')); updAvail(); };
   $('#adapt').onchange=()=>{ st.adaptive=$('#adapt').checked; persistSetup(); };
-  function want(){ return st.preset==='tuychon' ? {...st.counts, min:st.minutes} : {mcq:p.mcq,tf:p.tf,short:p.short,min:p.min}; }
-  function pool(){ return bank.filter(q=>st.topics.includes(q.topic) && (!st.levels.length || st.levels.includes(q.level))); }
+  function baseWant(){ return st.preset==='tuychon' ? {...st.counts, min:st.minutes} : {mcq:p.mcq,tf:p.tf,short:p.short,min:p.min}; }
+  function want(){ const w=baseWant(); if (st.lvMode==='so'){ for (const t of ['mcq','tf','short']) w[t]= typesOn().includes(t) ? LVK.reduce((s,k)=>s+(+((st.lvCnt[t]||{})[k])||0),0) : 0; } return w; }
+  function lvSpec(){ return st.lvMode==='so' ? {mode:'so', cnt:st.lvCnt} : {mode:'chon', lv:st.lv}; }
+  function pool(){ return bank.filter(q=>st.topics.includes(q.topic)); }
   function updAvail(){
-    const w=want(), pl=pool(); const have={mcq:0,tf:0,short:0}; pl.forEach(q=>have[q.type]++);
+    renderLv();
+    const w=want(), pl=pool(); const have={mcq:0,tf:0,short:0}; pl.forEach(q=>{ if (st.lvMode==='so' || !(st.lv[q.type]||[]).length || st.lv[q.type].includes(q.level)) have[q.type]++; });
     const el=$('#availNote');
     if (!st.topics.length){ el.innerHTML='<span class="chip warn">Hãy chọn ít nhất 1 chủ đề</span>'; return; }
     const lack=['mcq','tf','short'].filter(t=>w[t]>have[t]);
-    el.innerHTML = `<div class="small muted">Câu hỏi sẵn có: TN ${have.mcq} · Đ/S ${have.tf} · TLN ${have.short}</div>` + (lack.length?`<div class="small" style="color:var(--warn)">Một số dạng không đủ số câu yêu cầu — đề sẽ lấy tối đa số câu hiện có.</div>`:'');
+    el.innerHTML = `<div class="small muted">Đề sẽ có: TN ${w.mcq||0} · Đ/S ${w.tf||0} · TLN ${w.short||0} — câu phù hợp đang có: TN ${have.mcq} · Đ/S ${have.tf} · TLN ${have.short}</div>` + (lack.length?`<div class="small" style="color:var(--warn)">Một số dạng không đủ số câu yêu cầu — đề sẽ lấy tối đa số câu hiện có.</div>`:'');
   }
   updAvail();
   $('#startBtn').onclick=()=>{
     const w=want(), pl=pool();
     if (!st.topics.length){ toast('Hãy chọn ít nhất 1 chủ đề'); return; }
-    const items = buildItems(pl, w);
+    const items = buildItems(pl, w, S.setup.adaptive, lvSpec());
     if (!items.length){ toast('Không có câu hỏi phù hợp. Hãy chọn thêm chủ đề hoặc mức độ.'); return; }
     startQuiz({ grade:st.grade, subject:S.subj, src:st.src, topics:[...st.topics], name: `${SUB.name} ${st.grade} – ${st.preset==='tuychon'?'Đề tùy chọn':PR[st.preset].name}`, minutes:w.min }, items);
   };
@@ -732,9 +757,25 @@ function pick(pool, n, adaptive){
   while (res.length<n){ let added=false; for (const k of keys){ if (res.length>=n) break; if (groups[k].length){ const u=groups[k].shift(); if (u.length>1 && res.length+u.length>n+Math.ceil(u.length/2) && groups[k].some(x=>x.length===1)) { groups[k].push(u); continue; } u.forEach(q=>res.push(q)); added=true; } } if(!added) break; }
   return res;
 }
-function buildItems(pl, w, adaptive=S.setup.adaptive){
+const LV_ORD={NB:0,TH:1,VD:2,VDC:3};
+function sortByLevel(qs){ // dễ → khó, giữ các câu cùng đoạn văn đi liền nhau
+  const gmin={}; qs.forEach(q=>{ if(q.gid){ const v=LV_ORD[q.level]??1; gmin[q.gid]=Math.min(gmin[q.gid]??9, v); } });
+  return qs.map((q,i)=>({q,i,k:q.gid?gmin[q.gid]:(LV_ORD[q.level]??1)})).sort((a,b)=>a.k-b.k || (a.q.gid&&a.q.gid===b.q.gid ? (a.q.gi||0)-(b.q.gi||0) : a.i-b.i)).map(x=>x.q);
+}
+function buildItems(pl, w, adaptive=S.setup.adaptive, spec){
   const items=[];
-  for (const t of ['mcq','tf','short']) pick(pl.filter(q=>q.type===t), w[t]||0, adaptive).forEach(q=>items.push(mkItem(q)));
+  for (const t of ['mcq','tf','short']){
+    const tp=pl.filter(q=>q.type===t); let got=[];
+    if (spec && spec.mode==='so'){
+      const cnt=(spec.cnt||{})[t]||{}; const used=new Set();
+      for (const lv of ['NB','TH','VD','VDC']){ let need=+cnt[lv]||0; if(!need) continue;
+        for (const alt of LV_FALLBACK[lv]){ if (need<=0) break; const r=pick(tp.filter(q=>q.level===alt && !used.has(q.id)), need, adaptive); r.forEach(q=>used.add(q.id)); got=got.concat(r); need-=r.length; } }
+    } else {
+      const L=spec && spec.lv && spec.lv[t]; const p2 = L && L.length ? tp.filter(q=>L.includes(q.level)) : tp;
+      got=pick(p2, w[t]||0, adaptive);
+    }
+    sortByLevel(got).forEach(q=>items.push(mkItem(q)));
+  }
   return items;
 }
 function mkItem(q){ return { q, perm: q.type==='mcq' ? shuffle([0,1,2,3]) : null }; }
@@ -1885,7 +1926,7 @@ function cropTool(q, onDone, mode){
     <div class="small muted mt" id="ctInfo"></div>
     <p class="hint">Kéo chuột (hoặc ngón tay) khoanh vùng hình, rồi bấm <b>${isSol?'Gắn vào lời giải':'Gắn vào đề bài'}</b>. Khoanh sai thì kéo lại. Dùng ◀ ▶ hoặc gõ số trang để tìm đúng trang.</p>
     <div class="grid" style="grid-template-columns:1fr 260px;gap:14px;align-items:start">
-      <div style="max-height:72vh;overflow:auto;border:1px solid var(--line)"><div id="ctWrap" style="position:relative;display:inline-block;touch-action:none;user-select:none;cursor:crosshair"><img id="ctImg" draggable="false" style="display:block"><div id="ctSel" style="position:absolute;border:2px solid #e3342f;background:rgba(255,185,38,.2);display:none;pointer-events:none"></div></div><div id="ctEmpty" class="empty small" style="padding:30px"></div></div>
+      <div style="max-height:62vh;overflow:auto;border:1px solid var(--line);text-align:center;background:#f6f7fb"><div id="ctWrap" style="position:relative;display:inline-block;touch-action:none;user-select:none;cursor:crosshair"><img id="ctImg" draggable="false" style="display:block"><div id="ctSel" style="position:absolute;border:2px solid #e3342f;background:rgba(255,185,38,.2);display:none;pointer-events:none"></div></div><div id="ctEmpty" class="empty small" style="padding:30px"></div></div>
       <div>${isSol?'':`<div class="small"><b>Hình đề hiện tại</b></div><div id="ctQPrev" class="prev mt" style="min-height:60px">${q.img?`<img src="${esc(q.img)}" style="max-width:100%">`:'<span class="muted small">Chưa có</span>'}</div>`}
         <div class="small ${isSol?'':'mt'}"><b>Hình lời giải hiện tại</b></div><div id="ctSPrev" class="prev mt" style="min-height:60px">${q.solImg?`<img src="${esc(q.solImg)}" style="max-width:100%">`:'<span class="muted small">Chưa có</span>'}</div>
         <div class="small mt muted" style="max-height:200px;overflow:auto"><b>Lời giải:</b><br>${esc(String(q.solution||'').slice(0,600))}</div></div>
@@ -1893,7 +1934,7 @@ function cropTool(q, onDone, mode){
     <div class="row end mt">${isSol?'':'<button class="btn ghost sm" id="ctQRm">Bỏ hình đề</button>'}<button class="btn ghost sm" id="ctSRm">Bỏ hình lời giải</button><span style="flex:1"></span>${isSol?'':'<button class="btn ghost" id="ctQ">Gắn vào đề bài</button>'}<button class="btn ${isSol?'':'ghost'}" id="ctS">Gắn vào lời giải</button><button class="btn" id="ctDone">Xong</button></div>`, true);
   const img=$('#ctImg'), wrap=$('#ctWrap'), box=$('#ctSel');
   const draw=()=>{ if(!sel){ box.style.display='none'; return; } const W=img.clientWidth, H=img.clientHeight; const [x1,y1,x2,y2]=sel; box.style.display='block'; box.style.left=(Math.min(x1,x2)/1000*W)+'px'; box.style.top=(Math.min(y1,y2)/1000*H)+'px'; box.style.width=(Math.abs(x2-x1)/1000*W)+'px'; box.style.height=(Math.abs(y2-y1)/1000*H)+'px'; };
-  const applyZoom=()=>{ const cw=wrap.parentElement.clientWidth-4; img.style.maxWidth='none'; img.style.width=Math.max(200, Math.round(cw*zoom))+'px'; $('#ctZv').textContent=Math.round(zoom*100)+'%'; draw(); };
+  const applyZoom=()=>{ const cw=wrap.parentElement.clientWidth-4; const fit=img.naturalHeight? Math.min(cw, Math.round(window.innerHeight*0.6*img.naturalWidth/img.naturalHeight)) : cw; img.style.maxWidth='none'; img.style.width=Math.max(200, Math.round(fit*zoom))+'px'; $('#ctZv').textContent=Math.round(zoom*100)+'%'; draw(); };
   img.onload=()=>{ applyZoom(); };
   const renderTabs=()=>{
     $('#ctPages').innerHTML = keys.map(k=>`<button class="btn sm ${k===cur?'':'ghost'}" data-k="${k}">${esc(PAGES[k].label)}</button>`).join('');
@@ -1916,7 +1957,7 @@ function cropTool(q, onDone, mode){
   wrap.onpointerdown=e=>{ if(!cur) return; e.preventDefault(); start=pt(e); sel=[...start,...start]; try{ wrap.setPointerCapture(e.pointerId); }catch(_){} draw(); };
   wrap.onpointermove=e=>{ if(!start) return; const p=pt(e); sel=[start[0],start[1],p[0],p[1]]; draw(); };
   wrap.onpointerup=()=>{ start=null; };
-  $('#ctZi').onclick=()=>{ zoom=Math.min(3, zoom+0.5); applyZoom(); }; $('#ctZo').onclick=()=>{ zoom=Math.max(1, zoom-0.5); applyZoom(); };
+  $('#ctZi').onclick=()=>{ zoom=Math.min(4, zoom+0.5); applyZoom(); }; $('#ctZo').onclick=()=>{ zoom=Math.max(1, zoom-0.5); applyZoom(); };
   $('#ctPdf').onchange=async()=>{ const f=$('#ctPdf').files[0]; if(!f) return; $('#ctInfo').innerHTML='<span class="spin"></span> Đang mở file…';
     try{ const doc=await openPdf(f); const o={doc, name:f.name}; if(isSol) ASTATE.solDoc=o; else ASTATE.pdfDoc=o; await gotoPage(hint[0]||1); }catch(e){ toast('Không đọc được file PDF'); renderTabs(); } };
   $('#ctPic').onchange=async()=>{ const f=$('#ctPic').files[0]; if(!f) return; try{ const url=await fileToDataURL(f,1600); const k=addPage(url, (isSol?'Trang HDG ':'Trang đề ')+'(ảnh '+f.name.slice(0,18)+')'); keys.push(k); cur=k; show(); }catch(e){ toast('Không đọc được ảnh'); } };
