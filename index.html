@@ -1483,6 +1483,7 @@ const AI_SCHEMA = `Mỗi câu là một object JSON có các trường:
 - "grade": 10 | 11 | 12
 - "topic": mã chủ đề trong danh sách cho trước
 - "level": "NB" | "TH" | "VD" | "VDC"
+- "no": số thứ tự câu ghi trong đề (ví dụ 5 cho "Câu 5"), nếu có
 - "stem": đề bài (với "tf" là phần dẫn chung)
 - "options": mảng đúng 4 chuỗi, KHÔNG ghi "A." "B." ở đầu (chỉ với mcq)
 - "statements": mảng đúng 4 mệnh đề a, b, c, d, KHÔNG ghi "a)" ở đầu (chỉ với tf)
@@ -1597,7 +1598,7 @@ function impForm(form, canImg, imgMax){
     if(!f){ info.textContent=''; return; }
     info.innerHTML='<span class="spin"></span> Đang mở file PDF…';
     try{
-      pdfDoc=await openPdf(f);
+      pdfDoc=await openPdf(f); ASTATE.pdfDoc={doc:pdfDoc, name:f.name};
       const n=pdfDoc.numPages;
       let sampleText=''; try{ sampleText=await pageText(pdfDoc,1); }catch(e){}
       const scanned = sampleText.replace(/\s/g,'').length<40;
@@ -1618,7 +1619,7 @@ function impForm(form, canImg, imgMax){
       for (let p=1;p<=Math.min(doc.numPages,80);p++) pages.push({p, text:await pageText(doc,p)});
       const segs=buildSolSegs(pages);
       const scanned=pages.reduce((a,x)=>a+x.text.replace(/\s/g,'').length,0) < 60*pages.length;
-      solDoc={doc, pages, segs, name:f.name};
+      solDoc={doc, pages, segs, name:f.name}; ASTATE.solDoc=solDoc;
       info.innerHTML=`<div><b>${esc(f.name)}</b> — ${doc.numPages} trang · tìm thấy ${segs.length} đoạn "Câu …"</div>${scanned?'<div class="banner mt">File hướng dẫn giải có vẻ là bản scan (không có lớp chữ) nên không tự ghép được theo số câu. Nên dùng file PDF xuất từ Word, hoặc gộp lời giải vào file đề.</div>':''}`;
     }catch(e){ info.innerHTML=`<span style="color:var(--bad)">${esc(e.message||'Không đọc được file PDF')}</span>`; }
   };
@@ -1811,12 +1812,12 @@ async function runPdf(pdf, from, to, ansPages, withImg, sol, imgMax){
       let text=''; for(const p of ch) text+=`--- Trang đề ${p} ---\n`+await pageText(pdf,p)+'\n';
       const next=last+1; const hasNext = next<=pdf.numPages && !ansPages.includes(next);
       let nextText=''; if (hasNext) { try{ nextText=(await pageText(pdf,next)).slice(0,1800); }catch(e){} }
-      let solText='', solPages=[];
+      let solText='', solPages=[], chSegs=[];
       if (sol && sol.segs.length){
         const nums=qNumbers(text + '\n' + nextText.slice(0,600));
         const segs=sol.segs.filter(s=>nums.includes(s.num));
         solText=segs.map(s=>`--- (trang HDG ${s.page}) ---\n${s.text}`).join('\n').slice(0,12000);
-        solPages=[...new Set(segs.map(s=>s.page))].slice(0,2);
+        solPages=[...new Set(segs.map(s=>s.page))].slice(0,2); chSegs=segs;
       }
       const keys=[], labels=[];
       if (maxImgs){
@@ -1843,7 +1844,9 @@ ${keys.length?`Danh sách ảnh đính kèm theo thứ tự: ${labels.map((l,i)=
         ({arr, partial}=parseAiArray(res.text)); got=got.concat(arr);
         if (!arr.length) break;
       }
-      const drafts=fillPassages(got.filter(o=>o&&o.stem)).map(o=>{ const q=normDraft(o,null); q.srcNote=label; return q; });
+      const drafts=fillPassages(got.filter(o=>o&&o.stem)).map(o=>{ const q=normDraft(o,null); q.srcNote=label;
+        q._qHint=[...ch, ...(hasNext?[next]:[])];
+        if (chSegs.length){ const mine=chSegs.filter(s=>+s.num===+o.no).map(s=>s.page); const solHint=[...new Set([...mine, ...chSegs.map(s=>s.page)])]; if (solHint.length){ const lo=Math.min(...solHint), hi=Math.max(...solHint); for(let p=lo;p<=hi+1;p++) if(!solHint.includes(p)) solHint.push(p); } q._solHint=solHint.slice(0,8); } return q; });
       if (keys.length) for (const q of drafts){ await applyFigs(q, keys); if(q.img||q.solImg) withFig++; }
       S.aiDrafts=(S.aiDrafts||[]).concat(drafts.map(q=>({q,on:true})));
       added+=drafts.length;
@@ -1861,41 +1864,74 @@ ${keys.length?`Danh sách ảnh đính kèm theo thứ tự: ${labels.map((l,i)=
 }
 
 /* ---------- Công cụ cắt hình thủ công ---------- */
-function cropTool(q, onDone){
-  const keys=(q._pages||[]).filter(k=>PAGES[k]);
-  if (!keys.length){ toast('Không còn ảnh trang gốc (trang đã tải lại). Hãy tải ảnh hình vẽ thủ công bằng nút Sửa.'); return; }
-  let cur = (q.fig && keys[(+q.fig.img||1)-1]) || keys[0];
-  let sel = null; // [x1,y1,x2,y2] 0-1000
-  openModal(`<div class="row between"><h2 style="margin:0">✂️ Cắt hình vẽ từ trang</h2><button class="btn ghost sm" id="ctClose">✕</button></div>
-    <div class="row mt" id="ctPages">${keys.map(k=>`<button class="btn ghost sm" data-k="${k}">${esc(PAGES[k].label)}</button>`).join('')}</div>
-    <p class="hint">Kéo chuột (hoặc kéo ngón tay) để khoanh vùng hình vẽ, rồi bấm gắn vào đề bài hoặc lời giải. Có thể gắn cả hai.</p>
-    <div class="grid" style="grid-template-columns:1fr 260px;gap:14px;align-items:start">
-      <div id="ctWrap" style="position:relative;display:inline-block;max-width:100%;touch-action:none;user-select:none;border:1px solid var(--line);cursor:crosshair"><img id="ctImg" draggable="false" style="display:block;max-width:100%;max-height:72vh"><div id="ctSel" style="position:absolute;border:2px solid #e3342f;background:rgba(255,185,38,.2);display:none;pointer-events:none"></div></div>
-      <div><div class="small"><b>Hình đề hiện tại</b></div><div id="ctQPrev" class="prev mt" style="min-height:60px">${q.img?`<img src="${esc(q.img)}" style="max-width:100%">`:'<span class="muted small">Chưa có</span>'}</div>
-        <div class="small mt"><b>Hình lời giải hiện tại</b></div><div id="ctSPrev" class="prev mt" style="min-height:60px">${q.solImg?`<img src="${esc(q.solImg)}" style="max-width:100%">`:'<span class="muted small">Chưa có</span>'}</div></div>
+// mode 'q' = hình đề (ảnh trang đề), 's' = hình lời giải (ảnh trang file hướng dẫn giải)
+function cropTool(q, onDone, mode){
+  mode = mode==='s' ? 's' : 'q';
+  const isSol = mode==='s';
+  const src = () => isSol ? (ASTATE.solDoc || ASTATE.pdfDoc) : ASTATE.pdfDoc;   // {doc, name}; lời giải nằm trong file đề thì dùng file đề
+  const hint = (isSol ? (ASTATE.solDoc ? q._solHint : q._qHint) : q._qHint) || [];                  // số trang gợi ý
+  let keys = (q._pages||[]).filter(k=>PAGES[k] && (isSol ? /^Trang HDG/.test(PAGES[k].label) : !/^Trang HDG/.test(PAGES[k].label)));
+  if (isSol && !keys.length && !ASTATE.solDoc) keys=(q._pages||[]).filter(k=>PAGES[k]);
+  let cur = keys[0] || null, curPage = hint[0] || 1, sel=null, zoom=1;
+  const title = isSol ? '✂️ Cắt hình cho LỜI GIẢI (từ file hướng dẫn giải)' : '✂️ Cắt hình cho ĐỀ BÀI';
+  openModal(`<div class="row between"><h2 style="margin:0">${title}</h2><button class="btn ghost sm" id="ctClose">✕</button></div>
+    <div class="row mt" style="gap:6px;flex-wrap:wrap">
+      <span id="ctPages" class="row" style="gap:6px;flex-wrap:wrap"></span>
+      <span id="ctNav" class="row" style="gap:6px"></span>
+      <label class="btn ghost sm" style="cursor:pointer">📂 ${isSol?'Mở file lời giải PDF':'Mở file đề PDF'}<input type="file" id="ctPdf" accept="application/pdf,.pdf" hidden></label>
+      <label class="btn ghost sm" style="cursor:pointer">🖼 Tải ảnh chụp<input type="file" id="ctPic" accept="image/*" hidden></label>
+      <span class="row" style="gap:4px;margin-left:auto"><button class="btn ghost sm" id="ctZo">−</button><span class="small" id="ctZv">100%</span><button class="btn ghost sm" id="ctZi">+</button></span>
     </div>
-    <div class="row end mt"><button class="btn ghost sm" id="ctQRm">Bỏ hình đề</button><button class="btn ghost sm" id="ctSRm">Bỏ hình lời giải</button><span style="flex:1"></span><button class="btn ghost" id="ctQ">Gắn vào đề bài</button><button class="btn ghost" id="ctS">Gắn vào lời giải</button><button class="btn" id="ctDone">Xong</button></div>`, true);
+    <div class="small muted mt" id="ctInfo"></div>
+    <p class="hint">Kéo chuột (hoặc ngón tay) khoanh vùng hình, rồi bấm <b>${isSol?'Gắn vào lời giải':'Gắn vào đề bài'}</b>. Khoanh sai thì kéo lại. Dùng ◀ ▶ hoặc gõ số trang để tìm đúng trang.</p>
+    <div class="grid" style="grid-template-columns:1fr 260px;gap:14px;align-items:start">
+      <div style="max-height:72vh;overflow:auto;border:1px solid var(--line)"><div id="ctWrap" style="position:relative;display:inline-block;touch-action:none;user-select:none;cursor:crosshair"><img id="ctImg" draggable="false" style="display:block"><div id="ctSel" style="position:absolute;border:2px solid #e3342f;background:rgba(255,185,38,.2);display:none;pointer-events:none"></div></div><div id="ctEmpty" class="empty small" style="padding:30px"></div></div>
+      <div>${isSol?'':`<div class="small"><b>Hình đề hiện tại</b></div><div id="ctQPrev" class="prev mt" style="min-height:60px">${q.img?`<img src="${esc(q.img)}" style="max-width:100%">`:'<span class="muted small">Chưa có</span>'}</div>`}
+        <div class="small ${isSol?'':'mt'}"><b>Hình lời giải hiện tại</b></div><div id="ctSPrev" class="prev mt" style="min-height:60px">${q.solImg?`<img src="${esc(q.solImg)}" style="max-width:100%">`:'<span class="muted small">Chưa có</span>'}</div>
+        <div class="small mt muted" style="max-height:200px;overflow:auto"><b>Lời giải:</b><br>${esc(String(q.solution||'').slice(0,600))}</div></div>
+    </div>
+    <div class="row end mt">${isSol?'':'<button class="btn ghost sm" id="ctQRm">Bỏ hình đề</button>'}<button class="btn ghost sm" id="ctSRm">Bỏ hình lời giải</button><span style="flex:1"></span>${isSol?'':'<button class="btn ghost" id="ctQ">Gắn vào đề bài</button>'}<button class="btn ${isSol?'':'ghost'}" id="ctS">Gắn vào lời giải</button><button class="btn" id="ctDone">Xong</button></div>`, true);
   const img=$('#ctImg'), wrap=$('#ctWrap'), box=$('#ctSel');
-  const show=()=>{ $$('#ctPages [data-k]').forEach(b=>{ b.classList.toggle('ghost', b.dataset.k!==cur); }); img.src=PAGES[cur].url; sel=null; box.style.display='none';
-    const f = q.fig && keys[(+q.fig.img||1)-1]===cur ? q.fig.box : null; if (f && Array.isArray(f)) { sel=f.map(Number); draw(); } };
-  const draw=()=>{ if(!sel){ box.style.display='none'; return; } const r=img.getBoundingClientRect(); const [x1,y1,x2,y2]=sel; box.style.display='block'; box.style.left=(Math.min(x1,x2)/1000*r.width)+'px'; box.style.top=(Math.min(y1,y2)/1000*r.height)+'px'; box.style.width=(Math.abs(x2-x1)/1000*r.width)+'px'; box.style.height=(Math.abs(y2-y1)/1000*r.height)+'px'; };
-  img.onload=draw;
+  const draw=()=>{ if(!sel){ box.style.display='none'; return; } const W=img.clientWidth, H=img.clientHeight; const [x1,y1,x2,y2]=sel; box.style.display='block'; box.style.left=(Math.min(x1,x2)/1000*W)+'px'; box.style.top=(Math.min(y1,y2)/1000*H)+'px'; box.style.width=(Math.abs(x2-x1)/1000*W)+'px'; box.style.height=(Math.abs(y2-y1)/1000*H)+'px'; };
+  const applyZoom=()=>{ const cw=wrap.parentElement.clientWidth-4; img.style.maxWidth='none'; img.style.width=Math.max(200, Math.round(cw*zoom))+'px'; $('#ctZv').textContent=Math.round(zoom*100)+'%'; draw(); };
+  img.onload=()=>{ applyZoom(); };
+  const renderTabs=()=>{
+    $('#ctPages').innerHTML = keys.map(k=>`<button class="btn sm ${k===cur?'':'ghost'}" data-k="${k}">${esc(PAGES[k].label)}</button>`).join('');
+    $$('#ctPages [data-k]').forEach(b=>b.onclick=()=>{ cur=b.dataset.k; show(); });
+    const d=src();
+    $('#ctNav').innerHTML = d ? `<button class="btn ghost sm" id="ctPrev">◀</button><span class="small">Trang</span><input type="number" id="ctPn" min="1" max="${d.doc.numPages}" value="${curPage}" style="width:64px"><span class="small">/ ${d.doc.numPages}</span><button class="btn ghost sm" id="ctNext">▶</button>${hint.length?`<span class="small muted">gợi ý: ${hint.map(p=>`<a href="#" data-hp="${p}">tr.${p}</a>`).join(' ')}</span>`:''}` : '';
+    if (d){ $('#ctPrev').onclick=()=>gotoPage(curPage-1); $('#ctNext').onclick=()=>gotoPage(curPage+1); $('#ctPn').onchange=()=>gotoPage(+$('#ctPn').value); $$('#ctNav [data-hp]').forEach(a=>a.onclick=(ev)=>{ ev.preventDefault(); gotoPage(+a.dataset.hp); }); }
+    const info=$('#ctInfo'); info.textContent = d ? `File: ${d.name}` : (isSol ? 'Chưa mở file hướng dẫn giải trong phiên này — bấm "📂 Mở file lời giải PDF" để chọn lại file, hoặc tải ảnh chụp trang lời giải.' : '');
+  };
+  const gotoPage=async(n)=>{ const d=src(); if(!d) return; n=Math.max(1,Math.min(d.doc.numPages, n||1)); curPage=n; $('#ctInfo').innerHTML='<span class="spin"></span> Đang hiện trang '+n+'…';
+    try{ const k=await pageKey(d.doc, n, (isSol?'Trang HDG ':'Trang đề ')+n); if(!keys.includes(k)) keys.push(k); cur=k; show(); }catch(e){ toast('Không mở được trang '+n); renderTabs(); } };
+  const show=()=>{ renderTabs(); sel=null; box.style.display='none';
+    if(!cur){ img.style.display='none'; $('#ctEmpty').style.display=''; $('#ctEmpty').textContent= src() ? 'Chọn trang cần cắt.' : 'Chưa có trang nào để cắt.'; return; }
+    img.style.display=''; $('#ctEmpty').style.display='none'; img.src=PAGES[cur].url;
+    const m=/(\d+)\s*$/.exec(PAGES[cur].label||''); if(m && src()){ curPage=+m[1]; const pn=$('#ctPn'); if(pn) pn.value=curPage; }
+    const f = isSol ? q.solFig : q.fig;
+    if (f && Array.isArray(f.box) && (q._pages||[])[(+f.img||1)-1]===cur){ sel=f.box.map(Number); if(Math.max(...sel)<=1.001) sel=sel.map(v=>v*1000); setTimeout(draw,50); } };
   let start=null;
   const pt=e=>{ const r=img.getBoundingClientRect(); return [Math.max(0,Math.min(1000,(e.clientX-r.left)/r.width*1000)), Math.max(0,Math.min(1000,(e.clientY-r.top)/r.height*1000))]; };
-  wrap.onpointerdown=e=>{ e.preventDefault(); start=pt(e); sel=[...start,...start]; try{ wrap.setPointerCapture(e.pointerId); }catch(_){} draw(); };
+  wrap.onpointerdown=e=>{ if(!cur) return; e.preventDefault(); start=pt(e); sel=[...start,...start]; try{ wrap.setPointerCapture(e.pointerId); }catch(_){} draw(); };
   wrap.onpointermove=e=>{ if(!start) return; const p=pt(e); sel=[start[0],start[1],p[0],p[1]]; draw(); };
   wrap.onpointerup=()=>{ start=null; };
-  $$('#ctPages [data-k]').forEach(b=>b.onclick=()=>{ cur=b.dataset.k; show(); });
-  const doCrop=async(kind)=>{ if(!sel || Math.abs(sel[2]-sel[0])<8 || Math.abs(sel[3]-sel[1])<8){ toast('Hãy kéo để khoanh vùng hình trước'); return; }
+  $('#ctZi').onclick=()=>{ zoom=Math.min(3, zoom+0.5); applyZoom(); }; $('#ctZo').onclick=()=>{ zoom=Math.max(1, zoom-0.5); applyZoom(); };
+  $('#ctPdf').onchange=async()=>{ const f=$('#ctPdf').files[0]; if(!f) return; $('#ctInfo').innerHTML='<span class="spin"></span> Đang mở file…';
+    try{ const doc=await openPdf(f); const o={doc, name:f.name}; if(isSol) ASTATE.solDoc=o; else ASTATE.pdfDoc=o; await gotoPage(hint[0]||1); }catch(e){ toast('Không đọc được file PDF'); renderTabs(); } };
+  $('#ctPic').onchange=async()=>{ const f=$('#ctPic').files[0]; if(!f) return; try{ const url=await fileToDataURL(f,1600); const k=addPage(url, (isSol?'Trang HDG ':'Trang đề ')+'(ảnh '+f.name.slice(0,18)+')'); keys.push(k); cur=k; show(); }catch(e){ toast('Không đọc được ảnh'); } };
+  const doCrop=async(kind)=>{ if(!cur||!sel || Math.abs(sel[2]-sel[0])<8 || Math.abs(sel[3]-sel[1])<8){ toast('Hãy kéo để khoanh vùng hình trước'); return; }
     const url=await cropFig(cur, sel, 800, 0); if(!url){ toast('Vùng chọn quá nhỏ'); return; }
-    if (kind==='q'){ q.img=url; $('#ctQPrev').innerHTML=`<img src="${url}" style="max-width:100%">`; } else { q.solImg=url; $('#ctSPrev').innerHTML=`<img src="${url}" style="max-width:100%">`; }
+    if (!(q._pages||[]).includes(cur)) q._pages=(q._pages||[]).concat(cur);
+    const fb={img:q._pages.indexOf(cur)+1, box:sel.slice()};
+    if (kind==='q'){ q.img=url; q.fig=fb; $('#ctQPrev').innerHTML=`<img src="${url}" style="max-width:100%">`; } else { q.solImg=url; q.solFig=fb; $('#ctSPrev').innerHTML=`<img src="${url}" style="max-width:100%">`; }
     toast(kind==='q'?'Đã gắn hình vào đề bài':'Đã gắn hình vào lời giải'); };
-  $('#ctQ').onclick=()=>doCrop('q'); $('#ctS').onclick=()=>doCrop('s');
-  $('#ctQRm').onclick=()=>{ delete q.img; $('#ctQPrev').innerHTML='<span class="muted small">Chưa có</span>'; };
-  $('#ctSRm').onclick=()=>{ delete q.solImg; $('#ctSPrev').innerHTML='<span class="muted small">Chưa có</span>'; };
+  if ($('#ctQ')) $('#ctQ').onclick=()=>doCrop('q'); $('#ctS').onclick=()=>doCrop('s');
+  if ($('#ctQRm')) $('#ctQRm').onclick=()=>{ delete q.img; delete q.fig; $('#ctQPrev').innerHTML='<span class="muted small">Chưa có</span>'; };
+  $('#ctSRm').onclick=()=>{ delete q.solImg; delete q.solFig; $('#ctSPrev').innerHTML='<span class="muted small">Chưa có</span>'; };
   const finish=()=>{ closeModal(); onDone && onDone(q); };
   $('#ctDone').onclick=finish; $('#ctClose').onclick=finish;
-  show();
+  if (!cur && src()) gotoPage(hint[0]||1); else show();
 }
 
 /* ---------- Duyệt & xuất ---------- */
@@ -1921,14 +1957,15 @@ function renderDrafts(){
   <div class="banner">⚠️ AI có thể nhầm đáp án hoặc cắt hình chưa chuẩn. Thầy/cô kiểm tra lời giải, bấm <b>Sửa</b> hoặc <b>✂️ Cắt hình</b> nếu cần trước khi lưu. Câu bị bỏ chọn sẽ không được lưu.</div>
   <div id="dMsg" class="small mb"></div>
   ${D.map((d,i)=>{ const err=validateQ(cleanQ(d.q)); const canCrop=(d.q._pages||[]).some(k=>PAGES[k]); const figNeed=(d.q.fig&&!d.q.img)||(d.q.solFig&&!d.q.solImg);
-    return `<div class="ai-card ${d.on?'':'off'}"><div class="qhead"><label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" data-on="${i}" ${d.on?'checked':''}> <b>Câu ${i+1}</b></label><span class="chip pri">${TYPE_SHORT[d.q.type]||d.q.type}</span><span class="chip">Lớp ${d.q.grade}</span><span class="chip">${esc(topicName(d.q.topic))}</span><span class="chip">${LEVELS[d.q.level]||d.q.level}</span>${d.q.srcNote?`<span class="chip warn">PDF ${esc(d.q.srcNote)}</span>`:''}${d.q.img||d.q.solImg?'<span class="chip good">🖼 có hình</span>':''}${figNeed?'<span class="chip bad">cần cắt lại hình</span>':''}${err?`<span class="chip bad">${esc(err)}</span>`:''}<span style="margin-left:auto" class="row">${canCrop?`<button class="btn ghost sm" data-crop="${i}">✂️ Cắt hình</button>`:''}<button class="btn ghost sm" data-edd="${i}">Sửa</button><button class="btn danger sm" data-rmd="${i}" title="Xóa câu này khỏi danh sách duyệt">✕</button></span></div>${previewHtml(d.q,true)}</div>`; }).join('')}`;
+    return `<div class="ai-card ${d.on?'':'off'}"><div class="qhead"><label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" data-on="${i}" ${d.on?'checked':''}> <b>Câu ${i+1}</b></label><span class="chip pri">${TYPE_SHORT[d.q.type]||d.q.type}</span><span class="chip">Lớp ${d.q.grade}</span><span class="chip">${esc(topicName(d.q.topic))}</span><span class="chip">${LEVELS[d.q.level]||d.q.level}</span>${d.q.srcNote?`<span class="chip warn">PDF ${esc(d.q.srcNote)}</span>`:''}${d.q.img||d.q.solImg?'<span class="chip good">🖼 có hình</span>':''}${figNeed?'<span class="chip bad">cần cắt lại hình</span>':''}${err?`<span class="chip bad">${esc(err)}</span>`:''}<span style="margin-left:auto" class="row"><button class="btn ghost sm" data-crop="${i}" title="Cắt lại hình cho đề bài từ trang đề">✂️ Hình đề</button><button class="btn ghost sm" data-scrop="${i}" title="Cắt lại hình cho lời giải từ file hướng dẫn giải">✂️ Hình lời giải</button><button class="btn ghost sm" data-edd="${i}">Sửa</button><button class="btn danger sm" data-rmd="${i}" title="Xóa câu này khỏi danh sách duyệt">✕</button></span></div>${previewHtml(d.q,true)}</div>`; }).join('')}`;
   typeset(out);
   $$('[data-on]').forEach(c=>c.onchange=()=>{ D[+c.dataset.on].on=c.checked; renderDrafts(); });
   $$('[data-rmd]').forEach(b=>b.onclick=()=>{ D.splice(+b.dataset.rmd,1); renderDrafts(); });
-  $$('[data-crop]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.crop; cropTool(D[i].q, ()=>renderDrafts()); });
+  $$('[data-crop]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.crop; cropTool(D[i].q, ()=>renderDrafts(), 'q'); });
+  $$('[data-scrop]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.scrop; cropTool(D[i].q, ()=>renderDrafts(), 's'); });
   $$('[data-edd]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.edd; const copy=JSON.parse(JSON.stringify(D[i].q));
     const canCrop=(copy._pages||[]).some(k=>PAGES[k]);
-    editorModal(copy, null, {saveLabel:'Cập nhật bản nháp', onSave:(o)=>{ D[i].q={...o, src:'ai'}; renderDrafts(); }, cropBtn: canCrop ? (qq)=>{ D[i].q={...qq, src:'ai'}; cropTool(D[i].q, ()=>renderDrafts()); } : null}); });
+    editorModal(copy, null, {saveLabel:'Cập nhật bản nháp', onSave:(o)=>{ D[i].q={...o, src:'ai'}; renderDrafts(); }, cropBtn: (qq)=>{ D[i].q={...qq, src:'ai'}; cropTool(D[i].q, ()=>renderDrafts(), 'q'); }}); });
   persistDrafts();
   $('#dClear').onclick=async()=>{ if(D.length && !await ask('Bỏ tất cả câu đang chờ duyệt?','Bỏ tất cả')) return; S.aiDrafts=[]; renderDrafts(); };
   if (MODE==='workshop'){ $('#dSave').onclick=()=>exportDrafts(); return; }
