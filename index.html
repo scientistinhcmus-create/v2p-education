@@ -356,14 +356,19 @@ const ROUTES = {
   'lop-hoc': { label:'Lớp học', fn:()=>vTeacher(), teacher:true },
   'ngan-hang': { label:'Ngân hàng câu hỏi', fn:()=>vBank(), teacher:true },
   'cau-truc': { label:'Cấu trúc đề', fn:()=>vBlueprints(), teacher:true },
+  'tai-khoan': { label:'Tài khoản', fn:()=>vAccounts(), teacher:true, full:true },
   'ai-cau-hoi': { label:'Cập nhật câu hỏi bằng AI', fn:()=>vAI(), teacher:true }
 };
 function routeOk(k){
   if (!ROUTES[k]) return false;
   if (MODE==='workshop') return k==='ai-cau-hoi';
   if (MODE==='github' && k==='ai-cau-hoi') return false;
+  if (ROUTES[k].full && !(S.isTeacher && S.isFull && MODE==='github')) return false;
   return !ROUTES[k].teacher || S.isTeacher;
 }
+// Quyền giáo viên bộ môn
+function canEditSubj(sj){ if (MODE!=='github') return S.isTeacher; if (!S.isTeacher) return false; return S.isFull || (S.teachSubj||[]).includes(sj||'toan'); }
+function subjListText(a){ return (a||[]).map(s=>SUBJECTS[s]?SUBJECTS[s].name:s).join(', '); }
 function renderNav(){
   const keys = Object.keys(ROUTES).filter(routeOk);
   let h=''; keys.forEach((k,i)=>{ if (ROUTES[k].teacher && (i===0 || !ROUTES[keys[i-1]].teacher)) h+='<span class="sep"></span>'; h+=`<button data-r="${k}" class="${S.view===k?'on':''}">${ROUTES[k].label}</button>`; });
@@ -426,6 +431,19 @@ async function loadCommon(){
   try { const cfg = await withRetry(()=>S.db.doc('config/topics').get()); if (cfg.exists) S.customTopics = (cfg.data().list||[]).map(t=>({...t})); } catch(e){}
   if (S.uid) { try { const d = await withRetry(()=>S.db.doc('students/'+S.uid).get()); S.me = d.exists ? JSON.parse(JSON.stringify(d.data())) : null; } catch(e){ S.me=null; } }
 }
+function renderWho(){ $('#who').innerHTML='<button class="btn ghost sm" id="logoutP">Đăng xuất</button>'; $('#logoutP').onclick=()=>firebase.auth().signOut(); }
+function showPending(){
+  const me=S.me||{}; const locked=me.status==='locked';
+  $('#nav').innerHTML=''; renderWho();
+  $('#app').innerHTML=`<div class="card" style="max-width:520px;margin:30px auto;text-align:center;padding:30px">
+    <img src="${LOGO_FULL}" alt="V2P Education" style="width:130px;height:130px">
+    <h2>${locked?'Tài khoản đang tạm khóa':'Tài khoản đang chờ thầy/cô duyệt'}</h2>
+    <p>${locked?'Tài khoản của em đã bị khóa. Vui lòng liên hệ thầy/cô ở trung tâm V2P Education.':'Em đã đăng ký thành công. Hãy báo thầy/cô ở trung tâm để được duyệt, sau đó bấm <b>Kiểm tra lại</b>.'}</p>
+    <div class="prev small" style="text-align:left"><b>Họ tên:</b> ${esc(me.name||'')}<br><b>Lớp:</b> ${esc(me.className||'')}<br><b>Gmail:</b> ${esc((S.authUser&&S.authUser.email)||'')}</div>
+    <div class="row mt" style="justify-content:center"><button class="btn ghost" id="pdEdit">Sửa họ tên / lớp</button><button class="btn acc" id="pdCheck">Kiểm tra lại</button></div></div>`;
+  $('#pdCheck').onclick=()=>location.reload();
+  $('#pdEdit').onclick=()=>profileModal(false);
+}
 function showLogin(msg){
   $('#nav').innerHTML=''; $('#who').innerHTML='';
   $('#app').innerHTML=`<div class="card" style="max-width:440px;margin:30px auto;text-align:center;padding:30px">
@@ -455,12 +473,18 @@ async function initGithub(){
     if (!u){ S.uid=null; S.authUser=null; S.isTeacher=false; S.ready=false; showLogin(); return; }
     $('#app').innerHTML='<div class="empty"><span class="spin"></span> Đang tải…</div>';
     S.uid=u.uid; S.authUser=u;
-    try { const a=await withRetry(()=>S.db.doc('admins/'+u.uid).get()); S.isTeacher=a.exists; } catch(e){ S.isTeacher=false; }
+    S.adminInfo=null; S.isFull=false; S.teachSubj=null;
+    try { const a=await withRetry(()=>S.db.doc('admins/'+u.uid).get()); S.isTeacher=a.exists; if (a.exists){ S.adminInfo=a.data()||{}; S.teachSubj=Array.isArray(S.adminInfo.subjects)?S.adminInfo.subjects:null; S.isFull=!S.teachSubj; } } catch(e){ S.isTeacher=false; }
+    if (S.isTeacher && S.teachSubj && S.teachSubj.length && !S.teachSubj.includes(S.subj)) setSubject(S.teachSubj[0]);
+    if (!S.isTeacher){
+      try { const d=await withRetry(()=>S.db.doc('students/'+u.uid).get()); S.me=d.exists?JSON.parse(JSON.stringify(d.data())):null; } catch(e){ S.me=null; }
+      if (!S.me || !S.me.name){ S.ready=false; $('#nav').innerHTML=''; renderWho(); $('#app').innerHTML=''; profileModal(true); return; }
+      if ((S.me.status||'active')!=='active'){ S.ready=false; showPending(); return; }
+    }
     await loadCommon();
     S.ready=true;
     const start=location.hash.slice(1);
     await go(routeOk(start) ? start : (S.isTeacher ? 'lop-hoc' : 'luyen-tap'), true);
-    if (!S.isTeacher && (!S.me || !S.me.name)) profileModal(true);
   });
 }
 /* ---- Bản Xưởng soạn câu hỏi (claude.ai, chỉ AI) ---- */
@@ -486,7 +510,7 @@ function profileModal(first){
     const name=$('#pfName').value.trim(), cls=$('#pfClass').value.trim().toUpperCase();
     if (!name) { toast('Vui lòng nhập họ tên'); return; }
     $('#pfSave').disabled=true;
-    try { await saveMe(d=>{ d.name=name; d.className=cls; }); closeModal(); renderNav(); toast('Đã lưu thông tin'); }
+    try { await saveMe(d=>{ d.name=name; d.className=cls; }); closeModal(); toast('Đã lưu thông tin'); if (MODE==='github' && !S.isTeacher && (S.me.status||'active')!=='active'){ showPending(); return; } if (S.ready) renderNav(); else location.reload(); }
     catch(e){ toast(errMsg(e)); $('#pfSave').disabled=false; }
   };
 }
@@ -506,6 +530,7 @@ async function saveMe(mut){
   const ref = S.db.doc('students/'+S.uid);
   const snap = await withRetry(()=>ref.get());
   const d = snap.exists ? JSON.parse(JSON.stringify(snap.data())) : { createdAt:Date.now(), n:0, sum10:0, stats:{topics:{},types:{},levels:{}}, qh:{}, recent:[] };
+  if (!snap.exists && !S.isTeacher && MODE==='github') d.status='pending';
   if (S.isTeacher) d.role='teacher';
   if (S.authUser){ d.email=S.authUser.email||''; d.googleName=S.authUser.displayName||''; }
   mut(d);
@@ -574,6 +599,7 @@ async function bumpBank(grades){
 async function saveQuestion(q){
   const id = q.id || newId();
   const data = cleanQ(q);
+  if (!canEditSubj(data.subject)) throw {message:`Thầy/cô chỉ được thêm/sửa câu hỏi môn ${subjListText(S.teachSubj)}.`};
   const err = validateQ(data); if (err) throw {message:err};
   data.k = id; data.updatedAt = Date.now(); if (!data.createdAt) data.createdAt = Date.now();
   if (MODE==='github'){
@@ -1037,12 +1063,125 @@ async function vStats(uid, own){
 
 /* ===================== Giáo viên: lớp học ===================== */
 let TSTATE={cls:'', q:'', list:null};
+/* ===================== Quản lý tài khoản (giáo viên toàn quyền) ===================== */
+let ASTATE2={cls:'', q:'', sel:new Set(), tab:'pending'};
+async function vAccounts(){
+  const app=$('#app');
+  app.innerHTML=`<h1>Quản lý tài khoản</h1><p class="sub">Duyệt học sinh mới, khóa hoặc xóa tài khoản đã nghỉ/đã thi xong, và cấp quyền cho giáo viên bộ môn.</p><div id="acBox"><div class="empty"><span class="spin"></span> Đang tải…</div></div>`;
+  try{
+    const [ss, as] = await Promise.all([withRetry(()=>S.db.collection('students').limit(2000).get()), withRetry(()=>S.db.collection('admins').get())]);
+    ASTATE2.students = ss.docs.map(d=>({...JSON.parse(JSON.stringify(d.data())), id:d.id}));
+    ASTATE2.admins = as.docs.map(d=>({...d.data(), id:d.id}));
+  }catch(e){ $('#acBox').innerHTML=`<div class="banner">${esc(errMsg(e))}</div>`; return; }
+  renderAccounts();
+}
+function stLabel(s){ const st=s.status||'active'; return st==='pending'?'<span class="chip warn">Chờ duyệt</span>':st==='locked'?'<span class="chip bad">Đã khóa</span>':'<span class="chip good">Đang học</span>'; }
+function renderAccounts(){
+  const box=$('#acBox'); if(!box) return; const A=ASTATE2;
+  const adminIds=new Set(A.admins.map(a=>a.id));
+  const studs=A.students.filter(s=>!adminIds.has(s.id) && s.role!=='teacher');
+  const pend=studs.filter(s=>s.status==='pending');
+  const others=studs.filter(s=>s.status!=='pending');
+  const classes=[...new Set(others.map(s=>s.className||'').filter(Boolean))].sort();
+  const list=(A.tab==='pending'?pend:others).filter(s=>(A.tab==='pending'||!A.cls||s.className===A.cls)&&(!A.q||((s.name||'')+' '+(s.email||'')).toLowerCase().includes(A.q.toLowerCase())))
+    .sort((a,b)=>(a.className||'').localeCompare(b.className||'')||(a.name||'').localeCompare(b.name||''));
+  A.sel.forEach(id=>{ if(!list.some(s=>s.id===id)) A.sel.delete(id); });
+  const nSel=A.sel.size;
+  box.innerHTML=`<div class="tabs" id="acTabs"><button data-t="pending" class="${A.tab==='pending'?'on':''}">Chờ duyệt (${pend.length})</button><button data-t="students" class="${A.tab==='students'?'on':''}">Học sinh (${others.length})</button><button data-t="teachers" class="${A.tab==='teachers'?'on':''}">Giáo viên (${A.admins.length})</button></div>
+  ${A.tab==='teachers'?teachersHtml(A, studs):`
+  <div class="row mb mt">${A.tab==='students'?`<select id="acCls" style="width:auto"><option value="">Tất cả lớp</option>${classes.map(c=>`<option ${c===A.cls?'selected':''}>${esc(c)}</option>`).join('')}</select>`:''}
+    <input type="text" id="acQ" placeholder="Tìm tên hoặc Gmail…" style="max-width:260px" value="${esc(A.q)}">
+    <button class="btn ghost sm" id="acAll">☑ Chọn tất cả ${list.length} tài khoản${A.cls&&A.tab==='students'?' lớp '+esc(A.cls):''}</button></div>
+  <div class="card row" style="position:sticky;top:104px;z-index:5;padding:10px 14px;gap:8px;flex-wrap:wrap;${nSel?'border-color:var(--acc);background:#fffaf0':''}">
+    ${nSel?`<b class="small">Đã chọn ${nSel}</b>
+      ${A.tab==='pending'?'<button class="btn acc sm" data-act="approve">✓ Duyệt</button>':'<button class="btn ghost sm" data-act="approve">Mở khóa</button><button class="btn ghost sm" data-act="lock">🔒 Khóa</button>'}
+      <button class="btn danger sm" data-act="delete">🗑 Xóa tài khoản${A.tab==='students'?' + bài làm':''}</button><button class="btn ghost sm" id="acClr">Bỏ chọn</button>`
+      :`<span class="small muted">${A.tab==='pending'?'Học sinh đăng nhập lần đầu sẽ nằm ở đây cho đến khi thầy/cô duyệt. Tích chọn rồi bấm Duyệt.':'Tích chọn học sinh (hoặc chọn cả lớp) để khóa, mở khóa hay xóa. Học sinh đã thi xong nên xóa để nhẹ dữ liệu.'}</span>`}</div>
+  ${list.length?`<div class="card" style="padding:6px 10px;overflow:auto"><table class="tbl"><tr><th></th><th>Họ tên</th><th>Lớp</th><th>Gmail</th><th>Trạng thái</th><th class="num">Số bài</th><th>${A.tab==='pending'?'Đăng ký':'Lần cuối'}</th><th></th></tr>
+    ${list.map(s=>`<tr><td><input type="checkbox" data-acsel="${esc(s.id)}" ${A.sel.has(s.id)?'checked':''} style="width:18px;height:18px"></td><td><b>${esc(s.name||'(chưa đặt tên)')}</b></td><td>${esc(s.className||'')}</td><td class="small">${esc(s.email||'')}</td><td>${stLabel(s)}</td><td class="num">${s.n||0}</td><td class="small">${A.tab==='pending'?(s.createdAt?fmtDate(s.createdAt):'—'):(s.lastAt?fmtDate(s.lastAt):'—')}</td>
+      <td style="white-space:nowrap">${A.tab==='pending'?`<button class="btn acc sm" data-one="approve" data-id="${esc(s.id)}">Duyệt</button>`:''}<button class="btn ghost sm" data-mkt="${esc(s.id)}" title="Cấp quyền giáo viên cho tài khoản này">👩‍🏫 Giáo viên</button></td></tr>`).join('')}</table></div>`
+  :`<div class="card empty">${A.tab==='pending'?'Không có tài khoản nào chờ duyệt.':'Không có học sinh phù hợp.'}</div>`}`}`;
+  $$('#acTabs button').forEach(b=>b.onclick=()=>{ A.tab=b.dataset.t; A.sel.clear(); renderAccounts(); });
+  if (A.tab==='teachers'){ bindTeachers(A); return; }
+  if ($('#acCls')) $('#acCls').onchange=e=>{ A.cls=e.target.value; A.sel.clear(); renderAccounts(); };
+  $('#acQ').onchange=e=>{ A.q=e.target.value; renderAccounts(); };
+  $('#acAll').onclick=()=>{ list.forEach(s=>A.sel.add(s.id)); renderAccounts(); };
+  if ($('#acClr')) $('#acClr').onclick=()=>{ A.sel.clear(); renderAccounts(); };
+  $$('[data-acsel]').forEach(c=>c.onchange=()=>{ c.checked?A.sel.add(c.dataset.acsel):A.sel.delete(c.dataset.acsel); renderAccounts(); });
+  $$('[data-one]').forEach(b=>b.onclick=()=>doAccounts('approve',[b.dataset.id]));
+  $$('[data-act]').forEach(b=>b.onclick=()=>doAccounts(b.dataset.act,[...A.sel]));
+  $$('[data-mkt]').forEach(b=>b.onclick=()=>grantTeacher(A.students.find(s=>s.id===b.dataset.mkt)));
+}
+async function doAccounts(act, ids){
+  const A=ASTATE2; if(!ids.length) return;
+  const ss=ids.map(id=>A.students.find(s=>s.id===id)).filter(Boolean);
+  if (act==='delete'){
+    const names=ss.slice(0,6).map(s=>esc(s.name||s.email||s.id)).join(', ')+(ss.length>6?` và ${ss.length-6} tài khoản khác`:'');
+    if (!await ask(`Xóa <b>${ss.length}</b> tài khoản: ${names}?<br><br>Toàn bộ điểm, lịch sử làm bài và thống kê của các em sẽ bị <b>xóa vĩnh viễn, không khôi phục được</b>. (Nếu muốn giữ bảng điểm, hãy vào Lớp học → Sao chép bảng điểm trước.) Nếu các em đăng nhập lại sẽ phải chờ duyệt như tài khoản mới.`,'Xóa vĩnh viễn')) return;
+  } else if (act==='lock'){
+    if (!await ask(`Khóa ${ss.length} tài khoản? Các em sẽ không vào làm bài được cho đến khi thầy/cô mở khóa. Điểm và lịch sử vẫn được giữ.`,'Khóa')) return;
+  }
+  const box=$('#acBox'); let k=0; const tot=ss.length;
+  const prog=()=>toast(`Đang xử lý ${k}/${tot}…`, 1200);
+  try{
+    for (const s of ss){
+      const ref=S.db.doc('students/'+s.id);
+      if (act==='approve') await withRetry(()=>ref.update({status:'active', approvedAt:Date.now()}));
+      else if (act==='lock') await withRetry(()=>ref.update({status:'locked'}));
+      else if (act==='delete'){
+        for(;;){ const snap=await withRetry(()=>S.db.collection(`students/${s.id}/attempts`).limit(300).get()); if(!snap.size) break; const b=S.db.batch(); snap.docs.forEach(d=>b.delete(d.ref)); await withRetry(()=>b.commit()); }
+        await withRetry(()=>ref.delete());
+      }
+      k++; if (k%5===0) prog();
+    }
+  }catch(e){ toast(`Dừng ở ${k}/${tot}: ${errMsg(e)}`, 6000); }
+  A.sel.clear();
+  toast(act==='approve'?`Đã duyệt ${k} tài khoản`:act==='lock'?`Đã khóa ${k} tài khoản`:`Đã xóa ${k} tài khoản`);
+  vAccounts();
+}
+function teachersHtml(A, studs){
+  const me=S.uid;
+  return `<div class="card mt"><h2>Giáo viên</h2>
+    <table class="tbl"><tr><th>Tên</th><th>Gmail</th><th>Quyền</th><th></th></tr>
+    ${A.admins.map(a=>{ const st=A.students.find(s=>s.id===a.id)||{}; return `<tr><td><b>${esc(a.name||st.name||st.googleName||'(chưa có tên)')}</b>${a.id===me?' <span class="chip pri">Bạn</span>':''}</td><td class="small">${esc(a.email||st.email||'')}</td>
+      <td>${Array.isArray(a.subjects)?a.subjects.map(s=>`<span class="chip">${esc(SUBJECTS[s]?SUBJECTS[s].name:s)}</span>`).join(' '):'<span class="chip good">⭐ Toàn quyền</span>'}</td>
+      <td style="white-space:nowrap">${a.id===me?'':`<button class="btn ghost sm" data-ted="${esc(a.id)}">Sửa quyền</button><button class="btn danger sm" data-trm="${esc(a.id)}">Thu hồi</button>`}</td></tr>`; }).join('')}</table>
+    <h3 class="mt">Thêm giáo viên</h3>
+    <ol class="small"><li>Nhờ giáo viên đó mở trang V2P Education và <b>đăng nhập bằng Gmail</b> (nhập tên, lớp ghi "GV").</li><li>Vào tab <b>Chờ duyệt</b> hoặc <b>Học sinh</b>, bấm <b>👩‍🏫 Giáo viên</b> ở dòng tài khoản đó.</li><li>Chọn môn được phép soạn câu hỏi (hoặc Toàn quyền). Giáo viên đó tải lại trang là dùng được.</li></ol>
+    <p class="hint"><b>Giáo viên bộ môn</b>: thêm, sửa, nhập và xóa câu hỏi của môn được giao; xem Lớp học và Cấu trúc đề. <b>Toàn quyền</b>: thêm mọi môn, duyệt/xóa tài khoản và cấp quyền giáo viên.</p></div>`;
+}
+function bindTeachers(A){
+  $$('[data-ted]').forEach(b=>b.onclick=()=>{ const a=A.admins.find(x=>x.id===b.dataset.ted); grantTeacher({id:a.id, name:a.name, email:a.email}, a); });
+  $$('[data-trm]').forEach(b=>b.onclick=async()=>{ const a=A.admins.find(x=>x.id===b.dataset.trm); if(!await ask(`Thu hồi quyền giáo viên của <b>${esc(a.name||a.email||a.id)}</b>? Tài khoản sẽ trở thành học sinh bình thường.`,'Thu hồi')) return;
+    try{ await withRetry(()=>S.db.doc('admins/'+a.id).delete()); try{ await S.db.doc('students/'+a.id).set({role:'student', status:'active'},{merge:true}); }catch(_){} toast('Đã thu hồi quyền'); vAccounts(); }catch(e){ toast(errMsg(e)); } });
+}
+function grantTeacher(s, cur){
+  if (!s) return;
+  const subs=cur&&Array.isArray(cur.subjects)?cur.subjects:(cur?null:[]);
+  openModal(`<h2>${cur?'Sửa quyền giáo viên':'Cấp quyền giáo viên'}</h2>
+    <p><b>${esc(s.name||'')}</b> · ${esc(s.email||'')}</p>
+    <label class="row" style="gap:6px;cursor:pointer"><input type="radio" name="gtMode" value="subj" ${subs?'checked':''}> Giáo viên bộ môn — chỉ soạn câu hỏi các môn:</label>
+    <div class="row mt" style="margin-left:24px" id="gtSubs">${Object.entries(SUBJECTS).map(([k,v])=>`<label class="chip" style="cursor:pointer;padding:5px 10px"><input type="checkbox" value="${k}" ${subs&&subs.includes(k)?'checked':''}> ${v.name}</label>`).join('')}</div>
+    <label class="row mt" style="gap:6px;cursor:pointer"><input type="radio" name="gtMode" value="full" ${subs?'':'checked'}> ⭐ Toàn quyền (quản trị: mọi môn, duyệt/xóa tài khoản, cấp quyền giáo viên)</label>
+    <div class="row end mt"><button class="btn ghost" onclick="closeModal()">Hủy</button><button class="btn" id="gtSave">Lưu quyền</button></div>`);
+  $$('#gtSubs input').forEach(i=>i.onchange=()=>{ $('input[name=gtMode][value=subj]').checked=true; });
+  $('#gtSave').onclick=async()=>{
+    const full=$('input[name=gtMode]:checked').value==='full'; const list=$$('#gtSubs input:checked').map(i=>i.value);
+    if (!full && !list.length){ toast('Hãy chọn ít nhất một môn'); return; }
+    if (full && !await ask(`Cấp <b>toàn quyền</b> cho ${esc(s.name||s.email||'')}? Người này sẽ duyệt/xóa được tài khoản và cấp quyền cho người khác.`,'Cấp toàn quyền')) return;
+    const doc={role:'teacher', name:s.name||'', email:s.email||'', grantedAt:Date.now(), grantedBy:S.uid}; if (!full) doc.subjects=list;
+    try{ await withRetry(()=>S.db.doc('admins/'+s.id).set(doc)); try{ await S.db.doc('students/'+s.id).set({role:'teacher', status:'active'},{merge:true}); }catch(_){}
+      closeModal(); toast(full?'Đã cấp toàn quyền':'Đã cấp quyền giáo viên môn '+subjListText(list)); ASTATE2.tab='teachers'; vAccounts(); }catch(e){ toast(errMsg(e)); }
+  };
+}
 async function vTeacher(){
   const app=$('#app');
   app.innerHTML=`<h1>Lớp học</h1><p class="sub">Theo dõi điểm và điểm yếu của từng học sinh.</p><div id="tBox"><div class="empty"><span class="spin"></span> Đang tải…</div></div>`;
   try {
     const snap=await withRetry(()=>S.db.collection('students').limit(1000).get());
-    TSTATE.list = snap.docs.map(d=>({...JSON.parse(JSON.stringify(d.data())), id:d.id})).filter(s=>s.role!=='teacher' && s.id!==S.uid);
+    const allS = snap.docs.map(d=>({...JSON.parse(JSON.stringify(d.data())), id:d.id})).filter(s=>s.role!=='teacher' && s.id!==S.uid);
+    TSTATE.pending = allS.filter(s=>s.status==='pending').length;
+    TSTATE.list = allS.filter(s=>s.status!=='pending');
   } catch(e){ $('#tBox').innerHTML=`<div class="banner">${esc(errMsg(e))}</div>`; return; }
   let names={};
   try { if (S.user && S.user.profiles) names = await S.user.profiles(TSTATE.list.map(s=>s.id)) || {}; } catch(e){}
@@ -1052,7 +1191,7 @@ async function vTeacher(){
 function renderTeacher(){
   const box=$('#tBox'); if(!box) return;
   const all=TSTATE.list||[];
-  if (!all.length){ box.innerHTML=`<div class="card"><h2>Chưa có học sinh nào</h2><p>Để học sinh dùng được trang:</p>${MODE==='github'?'<ol><li>Gửi đường link trang web cho học sinh.</li><li>Học sinh bấm <b>Đăng nhập bằng Google</b>, nhập họ tên và lớp.</li><li>Kết quả các em sẽ hiện ở đây sau bài làm đầu tiên.</li></ol>':'<ol><li>Bấm <b>Share</b> (Chia sẻ) ở góc trang artifact trên claude.ai.</li><li>Thêm học sinh với quyền <b>Contributor</b>.</li><li>Gửi đường link cho học sinh.</li></ol>'}<p class="muted small">Học sinh chỉ xem được điểm của chính mình; thầy/cô xem được của tất cả.</p></div>`; return; }
+  if (!all.length){ box.innerHTML=`${TSTATE.pending?`<div class="banner">🔔 Có <b>${TSTATE.pending}</b> tài khoản mới đang chờ duyệt. ${S.isFull?'<a href="#tai-khoan">Mở trang Tài khoản để duyệt →</a>':''}</div>`:''}<div class="card"><h2>Chưa có học sinh nào</h2><p>Để học sinh dùng được trang:</p>${MODE==='github'?'<ol><li>Gửi đường link trang web cho học sinh.</li><li>Học sinh bấm <b>Đăng nhập bằng Google</b>, nhập họ tên và lớp.</li><li>Kết quả các em sẽ hiện ở đây sau bài làm đầu tiên.</li></ol>':'<ol><li>Bấm <b>Share</b> (Chia sẻ) ở góc trang artifact trên claude.ai.</li><li>Thêm học sinh với quyền <b>Contributor</b>.</li><li>Gửi đường link cho học sinh.</li></ol>'}<p class="muted small">Học sinh chỉ xem được điểm của chính mình; thầy/cô xem được của tất cả.</p></div>`; return; }
   const classes=[...new Set(all.map(s=>s.className||'').filter(Boolean))].sort();
   const list=all.filter(s=>(!TSTATE.cls||s.className===TSTATE.cls) && (!TSTATE.q || (s.name||'').toLowerCase().includes(TSTATE.q.toLowerCase())));
   const active=list.filter(s=>s.n);
@@ -1060,7 +1199,7 @@ function renderTeacher(){
   const totalN=active.reduce((a,s)=>a+s.n,0), avg = active.length? active.reduce((a,s)=>a+s.sum10/s.n,0)/active.length : 0;
   const weakOf=s=>{ const t=Object.entries((s.stats&&s.stats.topics)||{}).filter(([k,o])=>o.n>=3).map(([k,o])=>({k,a:o.s/o.n})).sort((a,b)=>a.a-b.a)[0]; return t&&t.a<0.7?t:null; };
   const sorted=[...list].sort((a,b)=>(a.className||'').localeCompare(b.className||'')||(a.name||'').localeCompare(b.name||''));
-  box.innerHTML=`
+  box.innerHTML=`${TSTATE.pending?`<div class="banner" style="background:#fffaf0;border-color:#f2d9a8;color:var(--ink)">🔔 Có <b>${TSTATE.pending}</b> tài khoản mới đang chờ duyệt. ${S.isFull?'<a href="#tai-khoan">Mở trang Tài khoản để duyệt →</a>':'Báo giáo viên quản trị để duyệt.'}</div>`:''}
   <div class="row mb"><select id="clsSel" style="width:auto"><option value="">Tất cả lớp</option>${classes.map(c=>`<option ${c===TSTATE.cls?'selected':''}>${esc(c)}</option>`).join('')}</select>
     <input type="text" id="qSearch" placeholder="Tìm tên học sinh…" style="max-width:260px" value="${esc(TSTATE.q)}"><button class="btn ghost sm" id="copyCsv">Sao chép bảng điểm (CSV)</button><button class="btn ghost sm" id="reloadT">Tải lại</button><button class="btn ghost sm" id="rebuildT" title="Tính lại số bài, điểm TB, điểm yếu từ toàn bộ bài làm đã lưu">Tính lại thống kê</button></div>
   <div class="grid g4">
@@ -1119,6 +1258,7 @@ function renderBank(){
   <div class="row between mb"><div class="row"><span class="chip pri" style="font-size:14px;padding:5px 12px">${esc(SUBJECTS[S.subj].name)}</span><div class="seg" id="bGrade">${[10,11,12].map(g=>`<button data-g="${g}" class="${BSTATE.grade===g?'on':''}">Lớp ${g}</button>`).join('')}</div>
     <div class="seg" id="bKho"><button data-k="" class="${!BSTATE.kho?'on':''}">Tất cả (${bankG.length})</button><button data-k="chuan" class="${BSTATE.kho==='chuan'?'on':''}">⭐ Kho đề chuẩn (${nCh})</button><button data-k="on" class="${BSTATE.kho==='on'?'on':''}">Kho ôn tập (${bankG.length-nCh})</button></div></div>
     <div class="row"><button class="btn" id="addQ">+ Thêm câu hỏi</button><button class="btn ghost" id="impQ">Nhập JSON</button><button class="btn ghost" id="dupScan">Tìm câu trùng</button><button class="btn ghost" id="expQ">Xuất JSON</button><button class="btn ghost" id="addTopic">+ Chủ đề</button></div></div>
+  ${canEditSubj(S.subj)?'':`<div class="banner">Thầy/cô đang xem môn ${esc(SUBJECTS[S.subj].name)} — chỉ được thêm/sửa câu hỏi môn ${esc(subjListText(S.teachSubj))}. Đổi môn ở ô chọn môn trên thanh menu.</div>`}
   <div class="card" style="overflow:auto"><h3>Số câu theo chủ đề — ${esc(SUBJECTS[S.subj].name)} ${BSTATE.grade}${BSTATE.kho?' · '+KHO[BSTATE.kho]:''} (tổng ${bank.length})</h3>
     <table class="tbl matrix"><tr><th>Chủ đề</th><th class="num">TN</th><th class="num">Đ/S</th><th class="num">TLN</th><th class="num">Tổng</th></tr>
     ${topics.map(t=>{const c=cnt[t.key]||{mcq:0,tf:0,short:0}; const tot=c.mcq+c.tf+c.short; return `<tr class="click" data-t="${t.key}"><td>${esc(t.name)}${t.custom?' <span class="chip">tự thêm</span>':''}</td><td class="num">${c.mcq||'<span class="muted">0</span>'}</td><td class="num">${c.tf||'<span class="muted">0</span>'}</td><td class="num">${c.short||'<span class="muted">0</span>'}</td><td class="num"><b>${tot}</b></td></tr>`;}).join('')}</table>
@@ -1132,7 +1272,7 @@ function renderBank(){
   <div class="card row" id="selBar" style="position:sticky;top:104px;z-index:5;padding:10px 14px;gap:8px;flex-wrap:wrap;${BSTATE.sel.size?'border-color:var(--acc);background:#fffaf0':''}">
     <button class="btn ghost sm" id="selPage">☑ Chọn cả trang này (${view.length})</button><button class="btn ghost sm" id="selFilt">Chọn tất cả ${f.length} câu đang lọc</button>
     ${BSTATE.sel.size?`<b class="small">Đã chọn ${BSTATE.sel.size} câu</b><button class="btn acc sm" id="selChuan">⭐ Đưa vào Kho đề chuẩn</button><button class="btn ghost sm" id="selOn">Đưa về Kho ôn tập</button><button class="btn ghost sm" id="selClr">Bỏ chọn</button>`:'<span class="small muted">Tích ô ở đầu mỗi câu, hoặc bấm ☆ trên từng câu để đưa ngay vào Kho đề chuẩn.</span>'}</div>
-  <div id="bList">${view.length?view.map(q=>`<div class="q" ${BSTATE.sel.has(q.id)?'style="outline:2px solid var(--acc)"':''}><div class="qhead"><input type="checkbox" data-sel="${q.id}" ${BSTATE.sel.has(q.id)?'checked':''} style="width:18px;height:18px;cursor:pointer" title="Chọn câu này"><span class="chip pri">${TYPE_SHORT[q.type]}</span><span class="chip">${esc(topicName(q.topic))}</span><span class="chip">${LEVELS[q.level]||''}</span>${q.src==='ai'?'<span class="chip warn">AI</span>':''}${qKho(q)==='chuan'?'<span class="chip good">⭐ Đề chuẩn</span>':''}${q.gid?'<span class="chip">📄 đoạn văn</span>':''}<span style="margin-left:auto" class="row"><button class="btn ${qKho(q)==='chuan'?'acc':'ghost'} sm" data-star="${q.id}" title="${qKho(q)==='chuan'?'Đang ở Kho đề chuẩn — bấm để đưa về Kho ôn tập':'Bấm để đưa vào Kho đề chuẩn'}">${qKho(q)==='chuan'?'⭐ Đề chuẩn':'☆ Đề chuẩn'}</button><button class="btn ghost sm" data-ed="${q.id}">Sửa</button><button class="btn danger sm" data-del="${q.id}">Xóa</button></span></div>${previewHtml(q,true)}</div>`).join(''):'<div class="card empty">Không có câu hỏi phù hợp.</div>'}</div>
+  <div id="bList">${view.length?view.map(q=>`<div class="q" ${BSTATE.sel.has(q.id)?'style="outline:2px solid var(--acc)"':''}><div class="qhead"><input type="checkbox" data-sel="${q.id}" ${BSTATE.sel.has(q.id)?'checked':''} style="width:18px;height:18px;cursor:pointer" title="Chọn câu này"><span class="chip pri">${TYPE_SHORT[q.type]}</span><span class="chip">${esc(topicName(q.topic))}</span><span class="chip">${LEVELS[q.level]||''}</span>${q.src==='ai'?'<span class="chip warn">AI</span>':''}${qKho(q)==='chuan'?'<span class="chip good">⭐ Đề chuẩn</span>':''}${q.gid?'<span class="chip">📄 đoạn văn</span>':''}<span style="margin-left:auto" class="row" ${canEditSubj(qSubject(q))?'':'hidden'}><button class="btn ${qKho(q)==='chuan'?'acc':'ghost'} sm" data-star="${q.id}" title="${qKho(q)==='chuan'?'Đang ở Kho đề chuẩn — bấm để đưa về Kho ôn tập':'Bấm để đưa vào Kho đề chuẩn'}">${qKho(q)==='chuan'?'⭐ Đề chuẩn':'☆ Đề chuẩn'}</button><button class="btn ghost sm" data-ed="${q.id}">Sửa</button><button class="btn danger sm" data-del="${q.id}">Xóa</button></span></div>${previewHtml(q,true)}</div>`).join(''):'<div class="card empty">Không có câu hỏi phù hợp.</div>'}</div>
   <div class="row end">${pages>1?`<button class="btn ghost sm" id="pPrev" ${BSTATE.page?'':'disabled'}>‹ Trước</button><span class="small">Trang ${BSTATE.page+1}/${pages}</span><button class="btn ghost sm" id="pNext" ${BSTATE.page<pages-1?'':'disabled'}>Sau ›</button>`:''}</div>`;
   typeset($('#bList')); hydrateImgs($('#bList'));
   $$('#bGrade button').forEach(b=>b.onclick=async()=>{ BSTATE.grade=+b.dataset.g; BSTATE.topic=''; BSTATE.page=0; box.innerHTML='<div class="empty"><span class="spin"></span></div>'; try{ await loadBank(BSTATE.grade,true);}catch(e){} renderBank(); });
@@ -1152,6 +1292,7 @@ function renderBank(){
   $('#fLv').onchange=e=>{BSTATE.level=e.target.value;BSTATE.page=0;renderBank();};
   $('#fQ').onchange=e=>{BSTATE.q=e.target.value;BSTATE.page=0;renderBank();};
   if($('#pPrev')){ $('#pPrev').onclick=()=>{BSTATE.page--;renderBank();window.scrollTo(0,0);}; $('#pNext').onclick=()=>{BSTATE.page++;renderBank();window.scrollTo(0,0);}; }
+  if (!canEditSubj(S.subj)) { ['addQ','impQ','dupScan','moveKho','selBar'].forEach(id=>{ const e=$('#'+id); if(e) e.style.display='none'; }); }
   $('#addQ').onclick=()=>editorModal({type:'mcq',subject:S.subj,kho:BSTATE.kho||'on',grade:BSTATE.grade,topic:BSTATE.topic||(topics[0]&&topics[0].key),level:'TH',options:['','','',''],answer:0,statements:['','','',''],stem:'',solution:''}, ()=>renderBank());
   $$('[data-ed]').forEach(b=>b.onclick=async()=>{ const q=JSON.parse(JSON.stringify(bankG.find(x=>x.id===b.dataset.ed))); if (q.hasImg||q.hasSolImg){ await loadImgs([q.id]); const c=S.imgCache[q.id]||{}; if(c.q) q.img=c.q; if(c.s) q.solImg=c.s; } editorModal(q, ()=>renderBank()); });
   $$('[data-del]').forEach(b=>b.onclick=async()=>{ if(!await ask('Xóa câu hỏi này khỏi ngân hàng? (Bài làm cũ của học sinh vẫn giữ nội dung câu)','Xóa')) return; try{ await withRetry(()=>S.db.doc('bank/'+b.dataset.del).delete()); if(MODE==='github'){ try{ await S.db.doc('bankimg/'+b.dataset.del).delete(); }catch(_){} } await bumpBank([BSTATE.grade]); S.bank[BSTATE.grade]=(S.bank[BSTATE.grade]||[]).filter(x=>x.id!==b.dataset.del); toast('Đã xóa'); renderBank(); }catch(e){ toast(errMsg(e)); } });
@@ -1250,7 +1391,10 @@ function importModal(){
   $('#impGo').onclick=async()=>{
     let arr; try{ arr=JSON.parse($('#impTa').value); if(!Array.isArray(arr)) arr=[arr]; }catch(e){ $('#impMsg').textContent='JSON không hợp lệ'; return; }
     const kho=($('input[name=impKho]:checked')||{}).value||'file'; try{ localStorage.setItem('v2p-impkho', kho); }catch(e){}
-    await saveMany(arr.map(o=>({...o, src:o.src||'import', id:undefined, kho: kho==='file'?(o.kho||'on'):kho, subject: SUBJECTS[o.subject]?o.subject:topicSubject(o.topic)})), $('#impMsg'), $('#impGo'));
+    let list=arr.map(o=>({...o, src:o.src||'import', id:undefined, kho: kho==='file'?(o.kho||'on'):kho, subject: SUBJECTS[o.subject]?o.subject:topicSubject(o.topic)}));
+    const bad=list.filter(o=>!canEditSubj(o.subject)).length;
+    if (bad){ list=list.filter(o=>canEditSubj(o.subject)); toast(`Bỏ qua ${bad} câu không thuộc môn của thầy/cô (${subjListText(S.teachSubj)})`, 5000); if(!list.length) return; }
+    await saveMany(list, $('#impMsg'), $('#impGo'));
   };
 }
 /* ===================== Phát hiện câu hỏi trùng lặp ===================== */
@@ -1639,9 +1783,9 @@ function impForm(form, canImg, imgMax){
     <div><h3>📄 File đề (PDF)</h3>
       <input type="file" id="aPdf" accept="application/pdf,.pdf">
       <div id="pdfInfo" class="mt small muted">Đề thi thử, đề kiểm tra, file chuyên đề… AI xử lý lần lượt từng 2 trang.</div>
-      <h3 class="mt">📗 File hướng dẫn giải (PDF, không bắt buộc)</h3>
+      <h3 class="mt">📗 File hướng dẫn giải riêng (không bắt buộc)</h3>
       <input type="file" id="aSolPdf" accept="application/pdf,.pdf">
-      <div id="solInfo" class="mt small muted">AI sẽ đối chiếu đáp án theo hướng dẫn giải và lấy hình vẽ trong lời giải. Nếu lời giải nằm ngay trong file đề thì không cần tải.</div></div>
+      <div id="solInfo" class="mt small muted">Chỉ cần khi lời giải là một file khác. Nếu đề và lời giải chung một file thì bỏ qua ô này — trang sẽ tự dò phần lời giải.</div></div>
     <div><h3>✍️ Hoặc dán nội dung / ảnh chụp</h3>
       <textarea id="aRaw" rows="6" placeholder="Dán đề, có thể kèm lời giải…">${esc(A.raw)}</textarea>
       ${canImg?`<label class="f">Ảnh chụp đề / lời giải (tối đa ${Math.min(4,imgMax)} ảnh)</label><input type="file" id="aImgs" accept="image/*" multiple>`:''}</div>
@@ -1660,11 +1804,28 @@ function impForm(form, canImg, imgMax){
       let sampleText=''; try{ sampleText=await pageText(pdfDoc,1); }catch(e){}
       const scanned = sampleText.replace(/\s/g,'').length<40;
       info.innerHTML=`<div><b>${esc(f.name)}</b> — ${n} trang ${scanned?'<span class="chip warn">bản scan</span>':'<span class="chip good">có lớp chữ</span>'}</div>
-        <div class="grid g3 mt"><div><label class="f">Từ trang</label><input type="number" id="pFrom" min="1" max="${n}" value="1"></div>
-        <div><label class="f">Đến trang</label><input type="number" id="pTo" min="1" max="${n}" value="${Math.min(n,20)}"></div>
+        <div class="mt" id="solWhere"><span class="spin"></span> <span class="small muted">Đang dò xem file có phần lời giải không…</span></div>
+        <div class="grid g3 mt"><div><label class="f">Đề: từ trang</label><input type="number" id="pFrom" min="1" max="${n}" value="1"></div>
+        <div><label class="f">Đề: đến trang</label><input type="number" id="pTo" min="1" max="${n}" value="${Math.min(n,20)}"></div>
         <div><label class="f">Trang bảng đáp án</label><input type="text" id="pAns" placeholder="VD: ${n}"></div></div>
         <label class="row mt" style="gap:6px;cursor:pointer"><input type="checkbox" id="pImg" ${canImg?'checked':'disabled'}> Gửi ảnh trang cho AI (đọc công thức, bản scan, cắt hình vẽ)</label>
         <div class="hint">Mỗi lượt khoảng 1–2 phút. File dài nên chia nhỏ phạm vi trang.</div>`;
+      try{
+        const d=await detectCombined(pdfDoc); A._comb=d;
+        const opt=(v,lab,on)=>`<label class="row" style="gap:6px;cursor:pointer;margin:3px 0"><input type="radio" name="solMode" value="${v}" ${on?'checked':''}> ${lab}</label>`;
+        const auto = d.start ? 'tail' : (d.inline>=3 ? 'inline' : 'none');
+        $('#solWhere').innerHTML=`<div class="card" style="padding:10px 14px;background:#fffaf0;border-color:#f2d9a8"><b class="small">Lời giải nằm ở đâu?</b>
+          ${opt('tail', `Ở <b>phần riêng phía sau trong cùng file này</b>, bắt đầu từ trang <input type="number" id="solStart" min="2" max="${n}" value="${d.start||''}" style="width:70px;padding:4px"> ${d.start?`<span class="chip good">tự nhận ra: trang ${d.start}</span>`:''}`, auto==='tail')}
+          ${opt('inline', `Ngay dưới mỗi câu (đề và lời giải xen kẽ)${d.inline>=3?` <span class="chip good">tự nhận ra</span>`:''}`, auto==='inline')}
+          ${opt('none', 'Không có lời giải trong file này (AI tự giải, hoặc chọn file hướng dẫn giải riêng ở dưới)', auto==='none')}
+          <div class="hint">Với "phần riêng phía sau", AI chỉ tách câu hỏi ở phần đề, còn phần sau dùng làm hướng dẫn giải: đối chiếu đáp án và cắt hình lời giải — không cần tách thành 2 file.</div></div>`;
+        const apply=()=>{ const m=($('input[name=solMode]:checked')||{}).value; const s=+($('#solStart')||{}).value||0;
+          if (m==='tail' && s>=2){ const midPage = d.start===s ? d.mid : false; $('#pTo').value = midPage ? s : s-1; }
+          else if (m!=='tail') $('#pTo').value=Math.min(n,20); };
+        $$('input[name=solMode]').forEach(r=>r.onchange=apply); $('#solStart').onchange=()=>{ $('input[name=solMode][value=tail]').checked=true; apply(); };
+        apply();
+        if (d.ansPage && !$('#pAns').value && (!d.start || d.ansPage<d.start)) $('#pAns').value=d.ansPage;
+      }catch(e){ $('#solWhere').innerHTML=''; }
     }catch(e){ info.innerHTML=`<span style="color:var(--bad)">${esc(e.message||'Không đọc được file PDF')}</span>`; }
   };
   $('#aSolPdf').onchange=async()=>{
@@ -1684,7 +1845,16 @@ function impForm(form, canImg, imgMax){
     if (pdfDoc){
       const n=pdfDoc.numPages, from=Math.max(1,+$('#pFrom').value||1), to=Math.min(n,+$('#pTo').value||n);
       if (to<from){ toast('Phạm vi trang không hợp lệ'); return; }
-      await runPdf(pdfDoc, from, to, parsePages($('#pAns').value, n), $('#pImg').checked, solDoc, imgMax);
+      let useSol=solDoc; const mode=($('input[name=solMode]:checked')||{}).value;
+      if (mode==='tail' && !solDoc){
+        const s=+($('#solStart')||{}).value||0; if (s<2||s>n){ toast('Hãy nhập trang bắt đầu phần lời giải'); return; }
+        const d=A._comb||{}; const pages=[];
+        for (let p=s;p<=Math.min(n,s+79);p++){ let t=(d.texts&&d.texts[p-1]!==undefined)?d.texts[p-1]:await pageText(pdfDoc,p); if (p===s && d.start===s && d.at) t=t.slice(d.at); pages.push({p, text:t}); }
+        useSol={doc:pdfDoc, pages, segs:buildSolSegs(pages), name:($('#aPdf').files[0]||{}).name||'file đề', sameDoc:true, start:s};
+        ASTATE.solDoc=useSol;
+        if (!useSol.segs.length) toast('Không tìm thấy "Câu …" trong phần lời giải — AI vẫn dùng ảnh trang lời giải nếu có.');
+      }
+      await runPdf(pdfDoc, from, to, parsePages($('#pAns').value, n), $('#pImg').checked, useSol, imgMax);
       return;
     }
     const files = $('#aImgs') ? [...$('#aImgs').files].slice(0,Math.min(4,imgMax||4)) : [];
@@ -1706,6 +1876,17 @@ function buildSolSegs(pages){
   if (hits.length<3) hits=scan(/C[âa]u\s*(\d{1,2})\s*[.:)\-]/gi); // dự phòng
   const pageAt=i=>{ let p=1; for(const [o,pp] of marks){ if(o<=i) p=pp; else break; } return p; };
   return hits.map((x,k)=>({num:x.num, page:pageAt(x.i), text:full.slice(x.i, k+1<hits.length?hits[k+1].i:full.length).slice(0,3500)}));
+}
+// Tìm phần lời giải nằm chung trong file đề
+const SOL_HEAD = /(HƯỚNG\s*DẪN\s*GIẢI|HƯỚNG\s*DẪN\s*CHẤM|LỜI\s*GIẢI\s*CHI\s*TIẾT|LỜI\s*GIẢI\s*THAM\s*KHẢO|ĐÁP\s*ÁN\s*(?:VÀ|&|-)\s*(?:LỜI\s*GIẢI|HƯỚNG\s*DẪN)|ĐÁP\s*ÁN\s*CHI\s*TIẾT|PHẦN\s*LỜI\s*GIẢI|BẢNG\s*ĐÁP\s*ÁN)/;
+async function detectCombined(doc){
+  const N=Math.min(doc.numPages, 80), texts=[];
+  for (let p=1;p<=N;p++){ try{ texts.push(String(await pageText(doc,p)).normalize('NFC')); }catch(e){ texts.push(''); } }
+  let start=null, at=0;
+  for (let p=2;p<=N;p++){ const m=SOL_HEAD.exec(texts[p-1]||''); if (m){ start=p; at=m.index; break; } }
+  const inline=texts.reduce((a,t)=>a+((t.match(/(^|\n)\s*(Lời giải|Hướng dẫn giải|Giải)\s*[:.\n]/g)||[]).length),0);
+  const ansPage=texts.findIndex((t,i)=>i>0 && /BẢNG\s*ĐÁP\s*ÁN/.test(t));
+  return {start, mid: start ? at>250 : false, at, texts, inline, ansPage: ansPage>=0?ansPage+1:null};
 }
 function qNumbers(text){ const s=new Set(); const re=/C[âa]u\s*(\d{1,2})\b/gi; let m; while((m=re.exec(text))) s.add(+m[1]); return [...s]; }
 function importPrompt(text, hasImg, extra){
@@ -1868,7 +2049,7 @@ async function runPdf(pdf, from, to, ansPages, withImg, sol, imgMax){
     setProg(`Lượt ${ci+1}/${chunks.length}: đang đọc ${label}…`, ci/chunks.length);
     try{
       let text=''; for(const p of ch) text+=`--- Trang đề ${p} ---\n`+await pageText(pdf,p)+'\n';
-      const next=last+1; const hasNext = next<=pdf.numPages && !ansPages.includes(next);
+      const next=last+1; const hasNext = next<=pdf.numPages && !ansPages.includes(next) && !(sol && sol.sameDoc && next>=sol.start && !(next===sol.start && to>=sol.start));
       let nextText=''; if (hasNext) { try{ nextText=(await pageText(pdf,next)).slice(0,1800); }catch(e){} }
       let solText='', solPages=[], chSegs=[];
       if (sol && sol.segs.length){
@@ -1884,7 +2065,7 @@ async function runPdf(pdf, from, to, ansPages, withImg, sol, imgMax){
         if (sol) for (const p of solPages){ if(keys.length>=maxImgs) break; keys.push(await pageKey(sol.doc,p,'Trang HDG '+p)); labels.push('trang hướng dẫn giải '+p); }
       }
       const imgs = await Promise.all(keys.map(k=>dataUrlToBlob(PAGES[k].url)));
-      const extra=`7. CHỈ trích các câu hỏi BẮT ĐẦU trên ${label} (trang chính). BỎ QUA phần đầu trang chính nếu đó là phần cuối của một câu đã bắt đầu ở trang trước. Nếu câu cuối cùng của trang chính còn tiếp sang trang kế tiếp (phần đề, phương án, bảng hoặc HÌNH VẼ nằm ở trang sau) thì phải dùng trang kế tiếp để lấy trọn câu đó, nhưng KHÔNG trích các câu bắt đầu ở trang kế tiếp.
+      const extra=(sol&&sol.sameDoc?`0. File này có cả đề và lời giải: phần lời giải bắt đầu ở trang ${sol.start}${ch.includes(sol.start)?' (ngay sau tiêu đề HƯỚNG DẪN GIẢI / LỜI GIẢI / ĐÁP ÁN trên trang này)':''}. Phần lời giải KHÔNG phải câu hỏi — không trích nó thành câu hỏi mới.\n`:'')+`7. CHỈ trích các câu hỏi BẮT ĐẦU trên ${label} (trang chính). BỎ QUA phần đầu trang chính nếu đó là phần cuối của một câu đã bắt đầu ở trang trước. Nếu câu cuối cùng của trang chính còn tiếp sang trang kế tiếp (phần đề, phương án, bảng hoặc HÌNH VẼ nằm ở trang sau) thì phải dùng trang kế tiếp để lấy trọn câu đó, nhưng KHÔNG trích các câu bắt đầu ở trang kế tiếp.
 8. Đề có thể đánh số lại "Câu 1" ở mỗi phần (PHẦN I trắc nghiệm, PHẦN II đúng/sai, PHẦN III trả lời ngắn) — xác định dạng theo phần chứa câu.
 9. Văn bản trích từ PDF bên dưới thường bị LỖI CÔNG THỨC (công thức MathType bị vỡ, mất phân số, căn, mũ). Luôn đọc đề và công thức từ ẢNH; văn bản chỉ để tham khảo chữ tiếng Việt. Bỏ qua chữ/logo in chìm (watermark) trên nền trang.
 10. Lời giải viết ngắn gọn nhưng đủ các bước chính (khoảng 3–8 dòng mỗi câu) để không vượt giới hạn độ dài.
