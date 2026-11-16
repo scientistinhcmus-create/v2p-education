@@ -568,7 +568,8 @@ async function loadBank(grade, force){
 // Bỏ ghi chú nguồn đề ở đầu/cuối câu: (Sở GD&ĐT …), [THPT Chuyên … – Lần 1], (Đề thi thử TN THPT 2025) …
 const SRC_KW='Sở|SGD|S\\.?GD|GD\\s*(?:&|và|-)?\\s*ĐT|GDĐT|BGD|Bộ\\s*GD|Bộ\\s*Giáo\\s*dục|Đề\\s*thi|Đề\\s*minh\\s*h[oọ]a|Đề\\s*tham\\s*khảo|Đề\\s*KS|khảo\\s*sát|thi\\s*thử|THPT|Chuyên|Trường|Liên\\s*trường|Cụm|Mã\\s*đề|Lần\\s*\\d|HK\\s*[12I]|học\\s*kì|học\\s*kỳ|giữa\\s*kì|cuối\\s*kì|TN\\s*THPT|THPTQG|Sưu\\s*tầm|Nguồn';
 const SRC_TAG=`[\\(\\[]([^()\\[\\]\\n]{0,160}?(?:${SRC_KW})[^()\\[\\]\\n]{0,160}?)[\\)\\]]`;
-const SRC_LEAD=new RegExp(`^\\s*(?:Câu\\s*\\d+\\s*[.:]?\\s*)?${SRC_TAG}\\s*[.:\\-–]?\\s*`,'i');
+const SRC_KW_LEAD=SRC_KW+'|(?:19|20)\\d\\d|KNTT|CTST|\\bCD\\s*\\d*\\b|\\bNK\\b|SGK|SBT|Mã\\s*\\d';
+const SRC_LEAD=new RegExp(`^\\s*(?:Câu\\s*\\d+\\s*[.:]?\\s*)?[\\(\\[]([^()\\[\\]\\n$]{0,160}?(?:${SRC_KW_LEAD})[^()\\[\\]\\n$]{0,160}?)[\\)\\]]\\s*[.:\\-–]?\\s*`,'i');
 const SRC_TAIL=new RegExp(`\\s*${SRC_TAG}\\s*[.]?\\s*$`,'i');
 function stripSrc(s){ if(!s) return s; let t=String(s), prev; do{ prev=t; t=t.replace(SRC_LEAD,''); t=t.replace(SRC_TAIL,''); }while(t!==prev); return t.trim(); }
 function cleanQ(q){
