@@ -565,8 +565,14 @@ async function loadBank(grade, force){
   S.bank[grade]=out;
   return out;
 }
+// Bỏ ghi chú nguồn đề ở đầu/cuối câu: (Sở GD&ĐT …), [THPT Chuyên … – Lần 1], (Đề thi thử TN THPT 2025) …
+const SRC_KW='Sở|SGD|S\\.?GD|GD\\s*(?:&|và|-)?\\s*ĐT|GDĐT|BGD|Bộ\\s*GD|Bộ\\s*Giáo\\s*dục|Đề\\s*thi|Đề\\s*minh\\s*h[oọ]a|Đề\\s*tham\\s*khảo|Đề\\s*KS|khảo\\s*sát|thi\\s*thử|THPT|Chuyên|Trường|Liên\\s*trường|Cụm|Mã\\s*đề|Lần\\s*\\d|HK\\s*[12I]|học\\s*kì|học\\s*kỳ|giữa\\s*kì|cuối\\s*kì|TN\\s*THPT|THPTQG|Sưu\\s*tầm|Nguồn';
+const SRC_TAG=`[\\(\\[]([^()\\[\\]\\n]{0,160}?(?:${SRC_KW})[^()\\[\\]\\n]{0,160}?)[\\)\\]]`;
+const SRC_LEAD=new RegExp(`^\\s*(?:Câu\\s*\\d+\\s*[.:]?\\s*)?${SRC_TAG}\\s*[.:\\-–]?\\s*`,'i');
+const SRC_TAIL=new RegExp(`\\s*${SRC_TAG}\\s*[.]?\\s*$`,'i');
+function stripSrc(s){ if(!s) return s; let t=String(s), prev; do{ prev=t; t=t.replace(SRC_LEAD,''); t=t.replace(SRC_TAIL,''); }while(t!==prev); return t.trim(); }
 function cleanQ(q){
-  const o = { type:q.type, grade:+q.grade, topic:q.topic, level:q.level||'TH', stem:String(q.stem||'').trim(), solution:String(q.solution||'').trim(), src:q.src||'manual' };
+  const o = { type:q.type, grade:+q.grade, topic:q.topic, level:q.level||'TH', stem:stripSrc(String(q.stem||'').trim()), solution:String(q.solution||'').trim(), src:q.src||'manual' };
   if (q.type==='mcq'){ o.options=(q.options||[]).slice(0,4).map(s=>String(s??'').trim()); o.answer=+q.answer; }
   else if (q.type==='tf'){ o.statements=(q.statements||[]).slice(0,4).map(s=>String(s??'').trim()); o.answer=(q.answer||[]).slice(0,4).map(v=>v===true||v==='true'||v==='Đ'||v===1); }
   else { o.answer=String(q.answer??'').trim(); }
@@ -1257,7 +1263,7 @@ function renderBank(){
   box.innerHTML=`
   <div class="row between mb"><div class="row"><span class="chip pri" style="font-size:14px;padding:5px 12px">${esc(SUBJECTS[S.subj].name)}</span><div class="seg" id="bGrade">${[10,11,12].map(g=>`<button data-g="${g}" class="${BSTATE.grade===g?'on':''}">Lớp ${g}</button>`).join('')}</div>
     <div class="seg" id="bKho"><button data-k="" class="${!BSTATE.kho?'on':''}">Tất cả (${bankG.length})</button><button data-k="chuan" class="${BSTATE.kho==='chuan'?'on':''}">⭐ Kho đề chuẩn (${nCh})</button><button data-k="on" class="${BSTATE.kho==='on'?'on':''}">Kho ôn tập (${bankG.length-nCh})</button></div></div>
-    <div class="row"><button class="btn" id="addQ">+ Thêm câu hỏi</button><button class="btn ghost" id="impQ">Nhập JSON</button><button class="btn ghost" id="dupScan">Tìm câu trùng</button><button class="btn ghost" id="expQ">Xuất JSON</button><button class="btn ghost" id="addTopic">+ Chủ đề</button></div></div>
+    <div class="row"><button class="btn" id="addQ">+ Thêm câu hỏi</button><button class="btn ghost" id="impQ">Nhập JSON</button><button class="btn ghost" id="dupScan">Tìm câu trùng</button><button class="btn ghost" id="srcClean" title="Bỏ các ghi chú nguồn đề như (Sở GD&ĐT …), (THPT Chuyên …) ở đầu/cuối câu hỏi">🧹 Bỏ ghi nguồn đề</button><button class="btn ghost" id="expQ">Xuất JSON</button><button class="btn ghost" id="addTopic">+ Chủ đề</button></div></div>
   ${canEditSubj(S.subj)?'':`<div class="banner">Thầy/cô đang xem môn ${esc(SUBJECTS[S.subj].name)} — chỉ được thêm/sửa câu hỏi môn ${esc(subjListText(S.teachSubj))}. Đổi môn ở ô chọn môn trên thanh menu.</div>`}
   <div class="card" style="overflow:auto"><h3>Số câu theo chủ đề — ${esc(SUBJECTS[S.subj].name)} ${BSTATE.grade}${BSTATE.kho?' · '+KHO[BSTATE.kho]:''} (tổng ${bank.length})</h3>
     <table class="tbl matrix"><tr><th>Chủ đề</th><th class="num">TN</th><th class="num">Đ/S</th><th class="num">TLN</th><th class="num">Tổng</th></tr>
@@ -1292,12 +1298,20 @@ function renderBank(){
   $('#fLv').onchange=e=>{BSTATE.level=e.target.value;BSTATE.page=0;renderBank();};
   $('#fQ').onchange=e=>{BSTATE.q=e.target.value;BSTATE.page=0;renderBank();};
   if($('#pPrev')){ $('#pPrev').onclick=()=>{BSTATE.page--;renderBank();window.scrollTo(0,0);}; $('#pNext').onclick=()=>{BSTATE.page++;renderBank();window.scrollTo(0,0);}; }
-  if (!canEditSubj(S.subj)) { ['addQ','impQ','dupScan','moveKho','selBar'].forEach(id=>{ const e=$('#'+id); if(e) e.style.display='none'; }); }
+  if (!canEditSubj(S.subj)) { ['addQ','impQ','dupScan','srcClean','moveKho','selBar'].forEach(id=>{ const e=$('#'+id); if(e) e.style.display='none'; }); }
   $('#addQ').onclick=()=>editorModal({type:'mcq',subject:S.subj,kho:BSTATE.kho||'on',grade:BSTATE.grade,topic:BSTATE.topic||(topics[0]&&topics[0].key),level:'TH',options:['','','',''],answer:0,statements:['','','',''],stem:'',solution:''}, ()=>renderBank());
   $$('[data-ed]').forEach(b=>b.onclick=async()=>{ const q=JSON.parse(JSON.stringify(bankG.find(x=>x.id===b.dataset.ed))); if (q.hasImg||q.hasSolImg){ await loadImgs([q.id]); const c=S.imgCache[q.id]||{}; if(c.q) q.img=c.q; if(c.s) q.solImg=c.s; } editorModal(q, ()=>renderBank()); });
   $$('[data-del]').forEach(b=>b.onclick=async()=>{ if(!await ask('Xóa câu hỏi này khỏi ngân hàng? (Bài làm cũ của học sinh vẫn giữ nội dung câu)','Xóa')) return; try{ await withRetry(()=>S.db.doc('bank/'+b.dataset.del).delete()); if(MODE==='github'){ try{ await S.db.doc('bankimg/'+b.dataset.del).delete(); }catch(_){} } await bumpBank([BSTATE.grade]); S.bank[BSTATE.grade]=(S.bank[BSTATE.grade]||[]).filter(x=>x.id!==b.dataset.del); toast('Đã xóa'); renderBank(); }catch(e){ toast(errMsg(e)); } });
   $('#impQ').onclick=importModal;
   $('#dupScan').onclick=scanDuplicates;
+  $('#srcClean').onclick=async()=>{
+    const hits=bankG.map(q=>({q, s:stripSrc(q.stem)})).filter(x=>x.s!==String(x.q.stem||'').trim());
+    if (!hits.length){ toast(`Không có câu nào (lớp ${BSTATE.grade}, môn ${SUBJECTS[S.subj].name}) còn ghi nguồn đề`); return; }
+    const ex=hits.slice(0,8).map(x=>`<div class="prev small" style="margin:6px 0"><span class="muted">Trước:</span> ${esc(String(x.q.stem).slice(0,160))}<br><b>Sau:</b> ${esc(x.s.slice(0,160))}</div>`).join('');
+    if (!await ask(`Tìm thấy <b>${hits.length}</b> câu (lớp ${BSTATE.grade}, môn ${esc(SUBJECTS[S.subj].name)}) có ghi nguồn đề ở đầu/cuối câu. Bỏ phần ghi nguồn này?${ex}${hits.length>8?`<div class="small muted">… và ${hits.length-8} câu khác</div>`:''}`,`Bỏ ở ${hits.length} câu`)) return;
+    let k=0; for (const x of hits){ try{ await withRetry(()=>S.db.doc('bank/'+x.q.id).update({stem:x.s, updatedAt:Date.now()})); x.q.stem=x.s; x.q.updatedAt=Date.now(); k++; if(k%20===0) toast(`Đang sửa ${k}/${hits.length}…`,1200); }catch(e){ toast(errMsg(e)); break; } }
+    if (k) await bumpBank([BSTATE.grade]); toast(`Đã bỏ ghi nguồn đề ở ${k} câu`); renderBank();
+  };
   $('#expQ').onclick=()=>{ const data=JSON.stringify(f.map(q=>{const o={...q}; delete o.k; return o;}),null,1); openModal(`<h3>Xuất ${f.length} câu (theo bộ lọc hiện tại)</h3><textarea style="min-height:300px;font-family:monospace;font-size:12px" id="expTa">${esc(data)}</textarea><div class="row end mt"><button class="btn ghost" id="cpExp">Sao chép</button><button class="btn" onclick="closeModal()">Đóng</button></div>`,true); $('#cpExp').onclick=async()=>{ try{await navigator.clipboard.writeText(data);toast('Đã sao chép');}catch(e){ $('#expTa').select(); } }; };
   $('#addTopic').onclick=topicModal;
 }
@@ -1689,8 +1703,13 @@ const AI_SCHEMA = `Mỗi câu là một object JSON có các trường:
 - "options": mảng đúng 4 chuỗi, KHÔNG ghi "A." "B." ở đầu (chỉ với mcq)
 - "statements": mảng đúng 4 mệnh đề a, b, c, d, KHÔNG ghi "a)" ở đầu (chỉ với tf)
 - "answer": với mcq là số 0-3 (vị trí phương án đúng); với tf là mảng 4 giá trị true/false; với short là chuỗi đáp số tối đa 4 ký tự, dùng dấu phẩy thập phân, ví dụ "1,5" hoặc "-12" (đề phải yêu cầu làm tròn nếu kết quả không đẹp)
-- "solution": lời giải chi tiết từng bước, giải thích vì sao từng ý đúng/sai với dạng tf.
+- "solution": lời giải (xem QUY TẮC LỜI GIẢI).
+- "solSrc": "hdg" nếu lời giải lấy từ lời giải/hướng dẫn giải có sẵn trong tài liệu; "ai" nếu tài liệu không có lời giải cho câu này và bạn tự soạn.
+- "warn": (chỉ khi cần) một câu ngắn báo cho giáo viên nếu bạn nghi đáp án/hướng dẫn giải có sẵn bị sai hoặc thiếu — KHÔNG tự sửa đáp án.
 - "passage": CHỈ dùng khi nhiều câu dùng chung một đoạn văn/đoạn thông tin (đọc hiểu, điền từ vào đoạn văn, "Sử dụng thông tin sau cho câu 3 và 4"…): chép NGUYÊN VẸN đoạn đó vào "passage" của MỖI câu trong cụm (giống hệt nhau), còn "stem" chỉ ghi phần hỏi riêng của câu; "gi" là thứ tự câu trong cụm (1, 2, 3…). Câu độc lập thì bỏ qua hai trường này.
+QUY TẮC LỜI GIẢI:
+• Nếu tài liệu có lời giải / hướng dẫn giải cho câu đó (ngay dưới câu, ở phần HƯỚNG DẪN GIẢI, hoặc file hướng dẫn giải): CHÉP LẠI lời giải đó làm "solution" — giữ nguyên cách giải, các bước, thứ tự lập luận, ký hiệu, cách đặt ẩn và kết luận của tác giả; chỉ chuyển công thức sang LaTeX, sửa lỗi font/lỗi đánh máy, ghép lại các dòng bị ngắt. KHÔNG đổi sang cách giải khác, KHÔNG rút gọn hay bỏ bước, KHÔNG thêm phần giải thích dài. Đáp án ("answer") lấy theo hướng dẫn giải / bảng đáp án. Nếu nghi đáp án có sẵn sai thì vẫn giữ theo tài liệu và ghi vào "warn".
+• Chỉ khi câu đó KHÔNG có lời giải nào trong tài liệu mới tự soạn: viết như giáo viên trình bày trên bảng cho học sinh — ngắn gọn, đúng cách làm quen thuộc trong chương trình THPT, mỗi bước một dòng (dùng \n), dùng công thức/định lí học sinh đã học, không trình bày suy nghĩ thử–sai, không tự sửa giữa chừng, không lan man; dòng cuối kết luận đáp án. Với dạng tf, mỗi ý a), b), c), d) một đoạn ngắn kết luận Đúng/Sai.
 Viết mọi công thức toán bằng LaTeX đặt trong $...$. Vì là JSON nên mỗi dấu \\ trong LaTeX phải viết thành \\\\ (ví dụ "\\\\frac{1}{2}"). Dùng \\n để xuống dòng.`;
 function subjRole(sj){ sj=sj||S.subj; return `giáo viên ${SUBJECTS[sj].name} THPT`; }
 function subjNote(sj){
@@ -1897,8 +1916,8 @@ Nhiệm vụ:
 3. Phân loại lớp và chủ đề theo đúng danh sách mã sau:
 ${topicListText()}
 4. Đánh giá mức độ NB/TH/VD/VDC.
-5. Giải chi tiết từng câu và xác định đáp án. Nếu có đáp án/hướng dẫn giải sẵn thì dựa vào đó nhưng vẫn kiểm tra lại; nếu thấy đáp án có sẵn sai thì theo kết quả đúng và ghi chú trong lời giải. Lời giải viết rõ ràng, dễ hiểu cho học sinh.
-6. Giữ nguyên nội dung đề, chỉ chuẩn hóa công thức sang LaTeX${S.subj==='anh'?' (môn Tiếng Anh: không cần LaTeX)':''}. Bỏ phần đầu trang/chân trang, số trang, tên trường, mã đề.${subjNote()}
+5. Lời giải và đáp án: ƯU TIÊN TUYỆT ĐỐI lời giải / hướng dẫn giải / bảng đáp án có sẵn trong tài liệu (chép lại đúng cách giải của tác giả, xem QUY TẮC LỜI GIẢI). Chỉ tự giải những câu tài liệu không có lời giải.
+6. BỎ phần ghi nguồn gốc câu hỏi (ví dụ "(Sở GD&ĐT Hà Nội 2024)", "[THPT Chuyên … – Lần 1]", "(Đề thi thử TN THPT …)", "Trích đề …") — không đưa vào "stem". Giữ nguyên phần còn lại của nội dung đề, chỉ chuẩn hóa công thức sang LaTeX${S.subj==='anh'?' (môn Tiếng Anh: không cần LaTeX)':''}. Bỏ phần đầu trang/chân trang, số trang, tên trường, mã đề.${subjNote()}
 ${extra||''}
 ${AI_SCHEMA}${hasImg?FIG_SCHEMA:'\nKhông có ảnh đính kèm: nếu câu cần hình vẽ thì mô tả hình bằng lời trong đề.'}
 
@@ -1978,6 +1997,7 @@ function fillPassages(list){
 }
 function normDraft(o, defaults){
   const q={...(defaults||{}), ...o, src:'ai'};
+  if (q.stem) q.stem=stripSrc(q.stem);
   if (!q.kho){ try{ q.kho=localStorage.getItem('v2p-ws-kho')||'on'; }catch(e){ q.kho='on'; } }
   if(defaults){ q.grade=defaults.grade; q.topic=q.topic||defaults.topic; }
   q.grade=+q.grade||topicGrade(q.topic)||12;
@@ -2055,7 +2075,7 @@ async function runPdf(pdf, from, to, ansPages, withImg, sol, imgMax){
       if (sol && sol.segs.length){
         const nums=qNumbers(text + '\n' + nextText.slice(0,600));
         const segs=sol.segs.filter(s=>nums.includes(s.num));
-        solText=segs.map(s=>`--- (trang HDG ${s.page}) ---\n${s.text}`).join('\n').slice(0,12000);
+        solText=segs.map(s=>`--- (trang HDG ${s.page}) ---\n${s.text}`).join('\n').slice(0,30000);
         solPages=[...new Set(segs.map(s=>s.page))].slice(0,2); chSegs=segs;
       }
       const keys=[], labels=[];
@@ -2069,7 +2089,7 @@ async function runPdf(pdf, from, to, ansPages, withImg, sol, imgMax){
 8. Đề có thể đánh số lại "Câu 1" ở mỗi phần (PHẦN I trắc nghiệm, PHẦN II đúng/sai, PHẦN III trả lời ngắn) — xác định dạng theo phần chứa câu.
 9. Văn bản trích từ PDF bên dưới thường bị LỖI CÔNG THỨC (công thức MathType bị vỡ, mất phân số, căn, mũ). Luôn đọc đề và công thức từ ẢNH; văn bản chỉ để tham khảo chữ tiếng Việt. Bỏ qua chữ/logo in chìm (watermark) trên nền trang.
 10. Lời giải viết ngắn gọn nhưng đủ các bước chính (khoảng 3–8 dòng mỗi câu) để không vượt giới hạn độ dài.
-${keys.length?`Danh sách ảnh đính kèm theo thứ tự: ${labels.map((l,i)=>`Ảnh ${i+1} = ${l}`).join('; ')}. Tọa độ khung hình vẽ ("fig"/"solFig") tính theo đúng ảnh chứa hình đó.\n`:''}${!keys.length&&nextText?`Trang kế tiếp (chỉ để tham khảo phần còn lại của câu cuối):\n"""\n${nextText}\n"""\n`:''}${ansText?`Bảng đáp án của cả đề (đối chiếu theo số thứ tự câu, vẫn phải tự kiểm tra lại):\n"""\n${ansText.slice(0,4000)}\n"""\n`:''}${solText?`HƯỚNG DẪN GIẢI CHÍNH THỨC cho các câu trong phần này (ghép đúng theo nội dung, vì mỗi phần đánh số lại từ Câu 1). Dùng hướng dẫn giải để xác định đáp án và viết lại lời giải dễ hiểu; lấy hình vẽ lời giải từ ảnh trang hướng dẫn giải nếu có:\n"""\n${solText}\n"""\n`:''}`;
+${keys.length?`Danh sách ảnh đính kèm theo thứ tự: ${labels.map((l,i)=>`Ảnh ${i+1} = ${l}`).join('; ')}. Tọa độ khung hình vẽ ("fig"/"solFig") tính theo đúng ảnh chứa hình đó.\n`:''}${!keys.length&&nextText?`Trang kế tiếp (chỉ để tham khảo phần còn lại của câu cuối):\n"""\n${nextText}\n"""\n`:''}${ansText?`Bảng đáp án của cả đề (đáp án chính thức — lấy "answer" theo bảng này, đối chiếu theo số thứ tự câu):\n"""\n${ansText.slice(0,4000)}\n"""\n`:''}${solText?`HƯỚNG DẪN GIẢI CHÍNH THỨC cho các câu trong phần này (ghép đúng câu theo nội dung, vì mỗi phần có thể đánh số lại từ Câu 1). Với mỗi câu có trong đây: "solution" = CHÉP LẠI đúng lời giải này (giữ nguyên cách giải và các bước, chỉ chuẩn hóa LaTeX), "answer" theo đáp án trong đây, "solSrc": "hdg". Nếu chữ bị lỗi font/mất công thức thì đọc lại từ ảnh trang hướng dẫn giải. Lấy hình vẽ lời giải từ ảnh trang hướng dẫn giải nếu có:\n"""\n${solText}\n"""\n`:''}`;
       const opt={ modelTier:'complex', signal:ctrl.signal, onText:({text:t})=>setProg(`Lượt ${ci+1}/${chunks.length} (${label}): AI đang viết… ${t.length.toLocaleString('vi-VN')} ký tự`) };
       if (imgs.length) opt.images=imgs;
       let got=[];
@@ -2196,7 +2216,7 @@ function renderDrafts(){
   <div class="banner">⚠️ AI có thể nhầm đáp án hoặc cắt hình chưa chuẩn. Thầy/cô kiểm tra lời giải, bấm <b>Sửa</b> hoặc <b>✂️ Cắt hình</b> nếu cần trước khi lưu. Câu bị bỏ chọn sẽ không được lưu.</div>
   <div id="dMsg" class="small mb"></div>
   ${D.map((d,i)=>{ const err=validateQ(cleanQ(d.q)); const canCrop=(d.q._pages||[]).some(k=>PAGES[k]); const figNeed=(d.q.fig&&!d.q.img)||(d.q.solFig&&!d.q.solImg);
-    return `<div class="ai-card ${d.on?'':'off'}"><div class="qhead"><label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" data-on="${i}" ${d.on?'checked':''}> <b>Câu ${i+1}</b></label><span class="chip pri">${TYPE_SHORT[d.q.type]||d.q.type}</span><span class="chip">Lớp ${d.q.grade}</span><span class="chip">${esc(topicName(d.q.topic))}</span><span class="chip">${LEVELS[d.q.level]||d.q.level}</span><button class="btn ${qKho(d.q)==='chuan'?'acc':'ghost'} sm" data-dstar="${i}" title="Bấm để đổi kho">${qKho(d.q)==='chuan'?'⭐ Kho đề chuẩn':'☆ Kho ôn tập'}</button>${d.q.srcNote?`<span class="chip warn">PDF ${esc(d.q.srcNote)}</span>`:''}${d.q.img||d.q.solImg?'<span class="chip good">🖼 có hình</span>':''}${figNeed?'<span class="chip bad">cần cắt lại hình</span>':''}${err?`<span class="chip bad">${esc(err)}</span>`:''}<span style="margin-left:auto" class="row"><button class="btn ghost sm" data-crop="${i}" title="Cắt lại hình cho đề bài từ trang đề">✂️ Hình đề</button><button class="btn ghost sm" data-scrop="${i}" title="Cắt lại hình cho lời giải từ file hướng dẫn giải">✂️ Hình lời giải</button><button class="btn ghost sm" data-edd="${i}">Sửa</button><button class="btn danger sm" data-rmd="${i}" title="Xóa câu này khỏi danh sách duyệt">✕</button></span></div>${previewHtml(d.q,true)}</div>`; }).join('')}`;
+    return `<div class="ai-card ${d.on?'':'off'}"><div class="qhead"><label class="row" style="gap:6px;cursor:pointer"><input type="checkbox" data-on="${i}" ${d.on?'checked':''}> <b>Câu ${i+1}</b></label><span class="chip pri">${TYPE_SHORT[d.q.type]||d.q.type}</span><span class="chip">Lớp ${d.q.grade}</span><span class="chip">${esc(topicName(d.q.topic))}</span><span class="chip">${LEVELS[d.q.level]||d.q.level}</span><button class="btn ${qKho(d.q)==='chuan'?'acc':'ghost'} sm" data-dstar="${i}" title="Bấm để đổi kho">${qKho(d.q)==='chuan'?'⭐ Kho đề chuẩn':'☆ Kho ôn tập'}</button>${d.q.solSrc==='hdg'?'<span class="chip good" title="Lời giải chép theo hướng dẫn giải trong tài liệu">📗 Lời giải theo HDG</span>':d.q.solSrc==='ai'?'<span class="chip warn" title="Tài liệu không có lời giải cho câu này — AI tự soạn, thầy/cô nên đọc lại">🤖 AI tự giải</span>':''}${d.q.warn?`<span class="chip bad" title="${esc(d.q.warn)}">⚠ ${esc(String(d.q.warn).slice(0,60))}</span>`:''}${d.q.srcNote?`<span class="chip warn">PDF ${esc(d.q.srcNote)}</span>`:''}${d.q.img||d.q.solImg?'<span class="chip good">🖼 có hình</span>':''}${figNeed?'<span class="chip bad">cần cắt lại hình</span>':''}${err?`<span class="chip bad">${esc(err)}</span>`:''}<span style="margin-left:auto" class="row"><button class="btn ghost sm" data-crop="${i}" title="Cắt lại hình cho đề bài từ trang đề">✂️ Hình đề</button><button class="btn ghost sm" data-scrop="${i}" title="Cắt lại hình cho lời giải từ file hướng dẫn giải">✂️ Hình lời giải</button><button class="btn ghost sm" data-edd="${i}">Sửa</button><button class="btn danger sm" data-rmd="${i}" title="Xóa câu này khỏi danh sách duyệt">✕</button></span></div>${previewHtml(d.q,true)}</div>`; }).join('')}`;
   typeset(out);
   $$('[data-on]').forEach(c=>c.onchange=()=>{ D[+c.dataset.on].on=c.checked; renderDrafts(); });
   $$('[data-rmd]').forEach(b=>b.onclick=()=>{ D.splice(+b.dataset.rmd,1); renderDrafts(); });
