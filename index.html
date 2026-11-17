@@ -1010,8 +1010,27 @@ async function vHistory(uid=S.uid, el=$('#app'), withTitle=true){
     const snap = await withRetry(()=>S.db.collection(`students/${uid}/attempts`).orderBy('at','desc').limit(60).get());
     const list = snap.docs.map(d=>({...JSON.parse(JSON.stringify(d.data())), id:d.id}));
     if (!list.length){ box.innerHTML='<div class="card empty">Chưa có bài làm nào.</div>'; return; }
-    box.innerHTML = `<div class="card" style="padding:6px 10px"><table class="tbl"><tr><th>Thời gian</th><th>Đề</th><th>Chủ đề</th><th class="num">Số câu</th><th class="num">Điểm /10</th><th></th></tr>
-      ${list.map((a,i)=>`<tr class="click" data-i="${i}"><td>${fmtDate(a.at)}</td><td>${esc(a.name||'')}<div class="muted small">Lớp ${a.grade}</div></td><td class="small">${(a.topics||[]).slice(0,3).map(t=>esc(topicName(t))).join('; ')}${(a.topics||[]).length>3?` (+${a.topics.length-3})`:''}</td><td class="num">${a.items.length}</td><td class="num"><b style="color:${a.score10>=8?'var(--good)':a.score10>=5?'var(--warn)':'var(--bad)'}">${fmt10(a.score10)}</b></td><td class="num"><button class="btn ghost sm">Xem lại</button></td></tr>`).join('')}</table></div>`;
+    const canDel = MODE==='github' && S.isTeacher && S.isFull;
+    const sel=new Set();
+    box.innerHTML = `${canDel?`<div class="row mb" id="hDelBar" style="gap:8px;flex-wrap:wrap"><span class="small muted" id="hDelInfo">Tích ô ở đầu dòng để chọn bài làm thử / làm nhầm cần xóa. Xóa xong, số bài, điểm TB và điểm yếu được tính lại.</span><button class="btn danger sm" id="hDel" disabled>🗑 Xóa bài đã chọn</button></div>`:''}<div class="card" style="padding:6px 10px"><table class="tbl"><tr>${canDel?'<th></th>':''}<th>Thời gian</th><th>Đề</th><th>Chủ đề</th><th class="num">Số câu</th><th class="num">Điểm /10</th><th></th></tr>
+      ${list.map((a,i)=>`<tr class="click" data-i="${i}">${canDel?`<td data-nc="1"><input type="checkbox" data-hs="${i}" style="width:18px;height:18px;cursor:pointer"></td>`:''}<td>${fmtDate(a.at)}</td><td>${esc(a.name||'')}<div class="muted small">Lớp ${a.grade}</div></td><td class="small">${(a.topics||[]).slice(0,3).map(t=>esc(topicName(t))).join('; ')}${(a.topics||[]).length>3?` (+${a.topics.length-3})`:''}</td><td class="num">${a.items.length}</td><td class="num"><b style="color:${a.score10>=8?'var(--good)':a.score10>=5?'var(--warn)':'var(--bad)'}">${fmt10(a.score10)}</b></td><td class="num"><button class="btn ghost sm">Xem lại</button></td></tr>`).join('')}</table></div>`;
+    if (canDel){
+      const upd=()=>{ $('#hDel',box).disabled=!sel.size; $('#hDel',box).textContent=sel.size?`🗑 Xóa ${sel.size} bài đã chọn`:'🗑 Xóa bài đã chọn'; };
+      $$('[data-nc]', box).forEach(td=>td.onclick=e=>e.stopPropagation());
+      $$('[data-hs]', box).forEach(c=>c.onchange=()=>{ c.checked?sel.add(+c.dataset.hs):sel.delete(+c.dataset.hs); c.closest('tr').style.background=c.checked?'#fff1f1':''; upd(); });
+      $('#hDel',box).onclick=async()=>{
+        const pick=[...sel].map(i=>list[i]);
+        const desc=pick.slice(0,6).map(a=>`${fmtDate(a.at)} — ${esc(a.name||'')} (${fmt10(a.score10)} điểm)`).join('<br>')+(pick.length>6?`<br>… và ${pick.length-6} bài khác`:'');
+        if (!await ask(`Xóa vĩnh viễn <b>${pick.length}</b> bài làm này?<br><br>${desc}<br><br>Các bài này sẽ không còn tính vào số bài, điểm trung bình và thống kê điểm yếu. Không khôi phục được.`,'Xóa bài')) return;
+        const btn=$('#hDel',box); btn.disabled=true; btn.textContent='Đang xóa…';
+        try{
+          for (const a of pick) await withRetry(()=>S.db.doc(`students/${uid}/attempts/${a.id}`).delete());
+          const d=await rebuildStats(uid); if (uid===S.uid) S.me=d;
+          toast(`Đã xóa ${pick.length} bài và tính lại thống kê`);
+          if (withTitle) vHistory(uid, el, true); else vStudentDetail(uid);
+        }catch(e){ toast(errMsg(e)); btn.disabled=false; upd(); }
+      };
+    }
     $$('tr[data-i]', box).forEach(tr=>tr.onclick=async()=>{ const a=list[+tr.dataset.i]; try{ await loadBank(a.grade); }catch(e){} const back = withTitle ? ()=>go('lich-su',true) : ()=>vStudentDetail(uid); vResult(a, true, back); window.scrollTo(0,0); });
   } catch(e){ box.innerHTML=`<div class="banner">${esc(errMsg(e))}</div>`; }
 }
