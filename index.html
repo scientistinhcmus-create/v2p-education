@@ -204,6 +204,7 @@ const BASE_TOPICS = {
   10: [
     ['10-menhde','Mệnh đề và tập hợp'],
     ['10-bpt','Bất phương trình, hệ BPT bậc nhất hai ẩn'],
+    ['10-miennghiem','Miền nghiệm của hệ BPT bậc nhất hai ẩn, bài toán tối ưu (thực tế)'],
     ['10-hamso2','Hàm số bậc hai và đồ thị'],
     ['10-tamthuc','Dấu tam thức bậc hai, BPT bậc hai'],
     ['10-hethucluong','Hệ thức lượng trong tam giác'],
@@ -222,7 +223,8 @@ const BASE_TOPICS = {
     ['11-mulog','Hàm số mũ và hàm số logarit'],
     ['11-vuonggoc','Quan hệ vuông góc, góc, khoảng cách, thể tích'],
     ['11-quytacxs','Các quy tắc tính xác suất'],
-    ['11-daoham','Đạo hàm']
+    ['11-daoham','Đạo hàm'],
+    ['11-dothi','Lý thuyết đồ thị (chuyên đề: đồ thị, đường đi Euler, Hamilton, đường đi ngắn nhất)']
   ],
   12: [
     ['12-khaosat','Ứng dụng đạo hàm, khảo sát hàm số'],
@@ -306,7 +308,9 @@ function allTopics(grade, subj){
   subj = subj || S.subj;
   const src = subj==='toan' ? (BASE_TOPICS[grade]||[]) : ((SUBJ_TOPICS[subj]||{})[grade]||[]);
   const base = src.map(([k,n])=>({key:k,name:n,grade,subject:subj}));
-  return base.concat(S.customTopics.filter(t=>+t.grade===+grade && (t.subject||'toan')===subj));
+  const nm=s=>String(s||'').toLowerCase().normalize('NFC').replace(/\(.*?\)/g,'').replace(/\s+/g,' ').trim();
+  const baseNames=new Set(base.map(t=>nm(t.name)));
+  return base.concat(S.customTopics.filter(t=>+t.grade===+grade && (t.subject||'toan')===subj && !baseNames.has(nm(t.name))));
 }
 function topicSubject(key){ const m=/^([a-z]+)\d{2}-/.exec(key||''); if (m && SUBJECTS[m[1]]) return m[1]; const c=S.customTopics.find(t=>t.key===key); return (c&&c.subject)||'toan'; }
 function qSubject(q){ return (q && q.subject) || topicSubject(q && q.topic); }
@@ -492,6 +496,7 @@ async function initWorkshop(){
   if (window.claude && window.claude.use) { try { S.sample = await claude.use('sample'); } catch(e){ S.sample=null; } }
   S.isTeacher = true; S.ready = true;
   try { const d=JSON.parse(localStorage.getItem('v2p-drafts')||'null'); if (Array.isArray(d)) S.aiDrafts=d; } catch(e){}
+  try { const t=JSON.parse(localStorage.getItem('v2p-ws-topics')||'null'); if (Array.isArray(t)) S.customTopics=t; } catch(e){}
   await go('ai-cau-hoi', true);
 }
 function persistDrafts(){ if (MODE!=='workshop') return; try{ localStorage.setItem('v2p-drafts', JSON.stringify(S.aiDrafts||[])); }catch(e){} }
@@ -1340,7 +1345,9 @@ function topicModal(){
    <label class="f">Lớp</label><select id="tpG">${[10,11,12].map(g=>`<option ${g===BSTATE.grade?'selected':''}>${g}</option>`).join('')}</select>
    <label class="f">Tên chủ đề</label><input type="text" id="tpN">
    ${S.customTopics.length?`<div class="mt small"><b>Chủ đề đã thêm:</b> ${S.customTopics.map(t=>`<span class="chip">${esc(t.name)} (L${t.grade}) <a href="#" data-rm="${t.key}">✕</a></span>`).join(' ')}</div>`:''}
-   <div class="row end mt"><button class="btn ghost" onclick="closeModal()">Đóng</button><button class="btn" id="tpSave">Thêm</button></div>`);
+   <p class="hint">Sau khi thêm chủ đề, bấm <b>📋 Sao chép chủ đề sang Xưởng</b> rồi dán vào Xưởng soạn câu hỏi (nút "Cập nhật chủ đề tự thêm") để AI phân loại được vào chủ đề mới.</p>
+   <div class="row end mt"><button class="btn ghost" id="tpCopy">📋 Sao chép chủ đề sang Xưởng</button><span style="flex:1"></span><button class="btn ghost" onclick="closeModal()">Đóng</button><button class="btn" id="tpSave">Thêm</button></div>`);
+  $('#tpCopy').onclick=async()=>{ const txt=JSON.stringify(S.customTopics.map(t=>({key:t.key,name:t.name,grade:t.grade,subject:t.subject||'toan'}))); try{ await navigator.clipboard.writeText(txt); toast(`Đã sao chép ${S.customTopics.length} chủ đề — dán vào Xưởng`); }catch(e){ openModal(`<h3>Sao chép đoạn sau</h3><textarea style="min-height:120px;font-family:monospace;font-size:12px">${esc(txt)}</textarea><div class="row end mt"><button class="btn" onclick="closeModal()">Đóng</button></div>`); } };
   const persist=async(list)=>{ const ref=S.db.doc('config/topics'); await withRetry(()=>ref.set({list, updatedAt:Date.now()})); S.customTopics=list; };
   $('#tpSave').onclick=async()=>{ const name=$('#tpN').value.trim(); const g=+$('#tpG').value; if(!name) return; const list=[...S.customTopics,{key:`${S.subj==='toan'?'':S.subj}${g}-c${Date.now().toString(36)}`,name,grade:g,custom:true,subject:S.subj}]; try{ await persist(list); closeModal(); toast('Đã thêm chủ đề'); renderBank(); }catch(e){ toast(errMsg(e)); } };
   $$('[data-rm]').forEach(a=>a.onclick=async(e)=>{ e.preventDefault(); if(!await ask('Xóa chủ đề này? Các câu hỏi thuộc chủ đề vẫn còn nhưng sẽ không hiển thị tên chủ đề.','Xóa')) return; try{ await persist(S.customTopics.filter(t=>t.key!==a.dataset.rm)); toast('Đã xóa'); renderBank(); }catch(err){ toast(errMsg(err)); } });
@@ -1759,14 +1766,28 @@ function extractJsonObject(text){
 }
 async function aiImgLimit(){ try{ const l=S.sample&&S.sample.limits?await S.sample.limits():null; if(!l||!l.images) return 0; return typeof l.images==='number'?l.images:(typeof l.maxImages==='number'?l.maxImages:6); }catch(e){ return 0; } }
 
+function wsTopicsModal(){
+  openModal(`<h2>Chủ đề tự thêm</h2>
+    <p class="small">Xưởng không đọc trực tiếp được dữ liệu trên trang V2P, nên chủ đề thầy/cô tự thêm ở trang V2P cần chép sang đây một lần để AI phân loại đúng:</p>
+    <ol class="small"><li>Trang V2P → <b>Ngân hàng câu hỏi</b> → <b>+ Chủ đề</b> → bấm <b>📋 Sao chép chủ đề sang Xưởng</b>.</li><li>Dán vào ô dưới rồi bấm Lưu.</li></ol>
+    <textarea id="wtTa" style="min-height:140px;font-family:monospace;font-size:12px" placeholder='[{"key":"11-c…","name":"…","grade":11,"subject":"toan"}]'>${S.customTopics.length?esc(JSON.stringify(S.customTopics)):''}</textarea>
+    ${S.customTopics.length?`<div class="small mt">${S.customTopics.map(t=>`<span class="chip">${esc(SUBJECTS[t.subject||'toan'].name)} ${t.grade}: ${esc(t.name)}</span>`).join(' ')}</div>`:''}
+    <div class="row end mt"><button class="btn ghost" onclick="closeModal()">Đóng</button><button class="btn" id="wtSave">Lưu</button></div>`);
+  $('#wtSave').onclick=()=>{ let arr; const raw=$('#wtTa').value.trim(); try{ arr=raw?JSON.parse(raw):[]; if(!Array.isArray(arr)) throw 0; }catch(e){ toast('Nội dung không đúng định dạng — hãy dán đúng đoạn đã sao chép'); return; }
+    S.customTopics=arr.filter(t=>t&&t.key&&t.name&&t.grade).map(t=>({key:String(t.key),name:String(t.name),grade:+t.grade,custom:true,subject:SUBJECTS[t.subject]?t.subject:'toan'}));
+    try{ localStorage.setItem('v2p-ws-topics', JSON.stringify(S.customTopics)); }catch(e){}
+    closeModal(); toast(`Đã cập nhật ${S.customTopics.length} chủ đề`); vAI(); };
+}
 async function vAI(){
   const app=$('#app');
   if (!S.sample) { try{ S.sample=await claude.use('sample'); }catch(e){ S.sample=null; } }
   const imgMax = await aiImgLimit(); const canImg = imgMax>0;
   const A=ASTATE;
+  setTimeout(()=>{ const b=$('#wsTopics'); if(b) b.onclick=wsTopicsModal; },0);
   app.innerHTML=`<h1>${MODE==='workshop'?'Xưởng soạn câu hỏi V2P':'Cập nhật câu hỏi bằng AI'}</h1><p class="sub">${MODE==='workshop'?'AI soạn câu mới theo chủ đề, hoặc tách – phân loại – giải đề từ file PDF/ảnh (kèm hình vẽ và file hướng dẫn giải). Duyệt xong bấm <b>Xuất JSON</b> rồi dán vào trang V2P Education (Ngân hàng câu hỏi → Nhập JSON).':'AI soạn câu mới theo chủ đề, hoặc tự tách – phân loại – giải đề thầy/cô đưa vào. Câu hỏi chỉ vào ngân hàng sau khi thầy/cô duyệt.'}</p>
   ${S.sample?'':'<div class="banner">Tính năng AI chưa sẵn sàng trong phiên xem này (cần mở trang trên claude.ai và cho phép trang dùng Claude).</div>'}
   <div class="tabs" id="aiTabs"><button data-t="gen" class="${A.tab==='gen'?'on':''}">Soạn câu mới theo chủ đề</button><button data-t="imp" class="${A.tab==='imp'?'on':''}">Nhập đề có sẵn (PDF, ảnh) + hình vẽ</button><button data-t="bp" class="${A.tab==='bp'?'on':''}">Phân tích đề mẫu → cấu trúc đề</button></div>
+  ${MODE==='workshop'?`<div class="row mb small" style="gap:8px"><span class="muted">Chủ đề tự thêm trên trang V2P: <b>${S.customTopics.length}</b></span><button class="btn ghost sm" id="wsTopics">Cập nhật chủ đề tự thêm</button></div>`:''}
   <div class="card" id="aiForm"></div>
   <div class="mt2" id="aiProgBox"></div>
   <div class="mt" id="aiOut"></div>`;
