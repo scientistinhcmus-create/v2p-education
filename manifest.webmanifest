@@ -1,0 +1,17 @@
+{
+  "name": "V2P Education – Ôn thi THPT",
+  "short_name": "V2P Education",
+  "description": "Luyện thi THPT Toán, Lý, Hóa, Tiếng Anh cùng trung tâm V2P Education",
+  "lang": "vi",
+  "start_url": "./?app=1",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#4b3fe0",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
